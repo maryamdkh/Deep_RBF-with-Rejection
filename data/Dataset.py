@@ -4,7 +4,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-class CustomDataset(Dataset):
+class ParkinsonDataset(Dataset):
     def __init__(self, dataframe, data_dir, transform=None, is_train=True):
         """
         Args:

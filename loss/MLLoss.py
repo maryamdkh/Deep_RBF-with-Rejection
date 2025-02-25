@@ -1,13 +1,13 @@
 import torch
 import torch.nn as nn
 
-class CustomLoss(nn.Module):
+class MLLoss(nn.Module):
     def __init__(self, lambda_margin=1.0):
         """
         Args:
             lambda_margin (float): Margin for hinge loss.
         """
-        super(CustomLoss, self).__init__()
+        super(MLLoss, self).__init__()
         self.lambda_margin = lambda_margin
 
     def forward(self, distances, doctor_labels, real_labels):

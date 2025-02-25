@@ -1,11 +1,15 @@
 import argparse
 import torch
 import torch.optim as optim
-from model import DeepRBFNetwork
-from loss import CustomLoss
-from trainer import Trainer
-from dataset import CustomDataset
-from dataloader import DataLoader, balanced_collate_fn
+from torch.utils.data import DataLoader
+
+from model.Model import DeepRBFNetwork
+from model.utils import load_feature_extractor
+from loss.MLLoss import MLLoss
+from trainer.Trainer import Trainer
+from data.Dataset import ParkinsonDataset
+from data.Dataloader import balanced_collate_fn
+import pandas as pd
 
 def main():
     # Parse command-line arguments
@@ -26,24 +30,29 @@ def main():
                         help="Number of epochs to train (default: 20)")
     parser.add_argument("--data_dir", type=str, required=True,
                         help="Directory containing the dataset")
+    parser.add_argument("--train_df", type=str, required=True,
+                        help=".csv file containing train metadata")
+    parser.add_argument("--val_df", type=str, required=True,
+                        help=".csv file containing validation metadata")
     parser.add_argument("--save_dir", type=str, default="checkpoints",
                         help="Directory to save model checkpoints (default: checkpoints)")
     args = parser.parse_args()
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     # Load the feature extractor model
-    feature_extractor = torch.load(args.feature_extractor)
+    feature_extractor = load_feature_extractor(args.feature_extractor,device)
     feature_extractor.eval()  # Set to evaluation mode (no training)
 
     # Define model, loss, optimizer, and data loaders
     model = DeepRBFNetwork(feature_extractor, args.num_classes, args.feature_dim)
-    criterion = CustomLoss(lambda_margin=args.lambda_margin)
+    criterion = MLLoss(lambda_margin=args.lambda_margin)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
     # Load dataset
-    train_dataset = CustomDataset(dataframe=pd.read_csv("train_labels.csv"), data_dir=args.data_dir, is_train=True)
-    val_dataset = CustomDataset(dataframe=pd.read_csv("val_labels.csv"), data_dir=args.data_dir, is_train=False)
+    train_dataset = ParkinsonDataset(dataframe= pd.read_csv(args.train_df), data_dir=args.data_dir, is_train=True)
+    val_dataset = ParkinsonDataset(dataframe= pd.read_csv(args.val_df), data_dir=args.data_dir, is_train=False)
 
     # Create DataLoader
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, collate_fn=balanced_collate_fn)
