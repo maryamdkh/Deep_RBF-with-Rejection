@@ -19,10 +19,10 @@ class CustomDataset(Dataset):
         self.is_train = is_train
 
         # Define normalization for image data (typical for pre-trained models)
-        self.normalize = transforms.Normalize(
-            mean=[0.485, 0.456, 0.406],  # Mean for ImageNet
-            std=[0.229, 0.224, 0.225]    # Std for ImageNet
-        )
+        self.normalize = transforms.Compose([
+                                    transforms.Resize((128, 128)),
+                                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize
+                                ])
 
         # Define data augmentation for training data
         if self.is_train:
