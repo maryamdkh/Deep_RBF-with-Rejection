@@ -20,6 +20,7 @@ def load_feature_extractor(data_path, device):
 
     # Load the pretrained WideResNet-50-2 model
     model = torch.hub.load('pytorch/vision:v0.10.0', 'wide_resnet50_2', pretrained=True)
+    model.fc = nn.Linear(model.fc.in_features, 3)
 
 
     # Load the model's state dict (if provided)
