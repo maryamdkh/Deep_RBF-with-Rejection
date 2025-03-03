@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 class DeepRBFNetwork(nn.Module):
     def __init__(self, feature_extractor, num_classes, feature_dim):
@@ -21,15 +20,25 @@ class DeepRBFNetwork(nn.Module):
 
     def forward(self, x):
         # Extract features
-        features = self.feature_extractor(x)  # Shape: (batch_size, feature_dim)
+        features = self.feature_extractor(x)
+        features = torch.squeeze(features)  # Shape: (batch_size, feature_dim)
+        # print("features:", features.shape)
 
         # Compute distances for each class
         distances = []
         for k in range(self.num_classes):
             A_k = self.A[k]  # Shape: (feature_dim, feature_dim)
+            # print("A_k:",A_k.shape)
             b_k = self.b[k]  # Shape: (feature_dim,)
-            d_k = torch.norm(torch.matmul(A_k.T, features.T).T + b_k, p=2, dim=1)  # Shape: (batch_size,)
+            # print("b_k:",b_k.shape)
+
+            # Compute (A_k^T * features^T)^T + b_k
+            transformed_features = torch.matmul(features, A_k.T) + b_k  # Shape: (batch_size, feature_dim)
+
+            # Compute L2 norm (distance)
+            d_k = torch.norm(transformed_features, p=2, dim=1)  # Shape: (batch_size,)
             distances.append(d_k)
+
         distances = torch.stack(distances, dim=1)  # Shape: (batch_size, num_classes)
 
         return distances

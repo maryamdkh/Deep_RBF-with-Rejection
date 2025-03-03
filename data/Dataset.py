@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from PIL import Image
 from torch.utils.data import Dataset
-from torchvision import transforms
+import torchvision.transforms as transforms
 
 class ParkinsonDataset(Dataset):
     def __init__(self, dataframe, data_dir, transform=None, is_train=True):
@@ -18,11 +18,14 @@ class ParkinsonDataset(Dataset):
         self.transform = transform
         self.is_train = is_train
 
+        # Define label mappings
+        self.label_mapping = {"control": 0, "parkinson": 1, "unknown": 2}
+
         # Define normalization for image data (typical for pre-trained models)
         self.normalize = transforms.Compose([
-                                    transforms.Resize((128, 128)),
-                                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize
-                                ])
+            transforms.Resize((128, 128)),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize
+        ])
 
         # Define data augmentation for training data
         if self.is_train:
@@ -46,8 +49,16 @@ class ParkinsonDataset(Dataset):
     def __getitem__(self, idx):
         # Get image path and labels from the DataFrame
         img_path = os.path.join(self.data_dir, self.dataframe.iloc[idx, 0])  # Assuming the first column is the image path
-        doctor_label = self.dataframe.iloc[idx, 1]  # Assuming the second column is doctor_label
-        real_label = self.dataframe.iloc[idx, 2]    # Assuming the third column is real_label
+        doctor_label_str = self.dataframe.iloc[idx, 1]  # Assuming the second column is doctor_label
+        real_label_str = self.dataframe.iloc[idx, 2]    # Assuming the third column is real_label
+
+        # Convert string labels to integers using the mapping
+        doctor_label = self.label_mapping.get(doctor_label_str, -1)  # Default to -1 if label is invalid
+        real_label = self.label_mapping.get(real_label_str, -1)      # Default to -1 if label is invalid
+
+        # Validate labels
+        if doctor_label == -1 or real_label == -1:
+            raise ValueError(f"Invalid label found: doctor_label={doctor_label_str}, real_label={real_label_str}")
 
         # Load the image
         image = Image.open(img_path).convert('RGB')  # Ensure image is in RGB format
@@ -59,13 +70,13 @@ class ParkinsonDataset(Dataset):
             image = self.augmentation(image)
 
         # Determine the group label
-        if doctor_label == "control":
+        if doctor_label == 0:  # control
             group_label = 0  # Group 1: control
-        elif doctor_label == "parkinson":
+        elif doctor_label == 1:  # parkinson
             group_label = 1  # Group 2: parkinson
-        elif doctor_label == "unknown" and real_label == "control":
+        elif doctor_label == 2 and real_label == 0:  # unknown + control
             group_label = 2  # Group 3: unknown_control
-        elif doctor_label == "unknown" and real_label == "parkinson":
+        elif doctor_label == 2 and real_label == 1:  # unknown + parkinson
             group_label = 3  # Group 4: unknown_parkinson
         else:
             raise ValueError("Invalid label combination")

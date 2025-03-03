@@ -53,7 +53,7 @@ def main():
     # Load dataset
     train_dataset = ParkinsonDataset(dataframe= pd.read_csv(args.train_df), data_dir=args.data_dir, is_train=True)
     val_dataset = ParkinsonDataset(dataframe= pd.read_csv(args.val_df), data_dir=args.data_dir, is_train=False)
-
+    
     # Create DataLoader
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, collate_fn=balanced_collate_fn)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, collate_fn=balanced_collate_fn)

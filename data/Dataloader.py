@@ -22,8 +22,13 @@ def balanced_collate_fn(batch):
     balanced_batch = []
     for group in groups.values():
         if len(group) > min_samples:
-            group = np.random.choice(group, size=min_samples, replace=True).tolist()
-        balanced_batch.extend(group)
+            # Sample indices with replacement
+            indices = np.random.choice(len(group), size=min_samples, replace=True)
+            # Use indices to select samples
+            sampled_group = [group[i] for i in indices]
+            balanced_batch.extend(sampled_group)
+        else:
+            balanced_batch.extend(group)
 
     # Shuffle the balanced batch
     np.random.shuffle(balanced_batch)

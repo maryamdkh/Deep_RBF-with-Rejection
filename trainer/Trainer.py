@@ -42,7 +42,7 @@ class Trainer:
 
         # Use tqdm for progress bar
         pbar = tqdm(self.train_loader, desc="Training", leave=False)
-        for images, doctor_labels, real_labels in pbar:
+        for images, doctor_labels, real_labels,_ in pbar:
             # Move data to the correct device
             images = images.to(self.device)
             doctor_labels = doctor_labels.to(self.device)
@@ -76,7 +76,7 @@ class Trainer:
         with torch.no_grad():
             # Use tqdm for progress bar
             pbar = tqdm(self.val_loader, desc="Validation", leave=False)
-            for images, doctor_labels, real_labels in pbar:
+            for images, doctor_labels, real_labels,_ in pbar:
                 # Move data to the correct device
                 images = images.to(self.device)
                 doctor_labels = doctor_labels.to(self.device)
@@ -146,4 +146,4 @@ class Trainer:
             print(f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
 
         # Plot losses after training
-        self.plot_losses()
+        self.plot_losses()  

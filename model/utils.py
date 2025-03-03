@@ -28,7 +28,7 @@ def load_feature_extractor(data_path, device):
         model.load_state_dict(torch.load(data_path))
 
     # Remove the last two layers (avgpool and fc)
-    model = torch.nn.Sequential(*list(model.children())[:-2])
+    model = torch.nn.Sequential(*list(model.children())[:-1])
 
     # Move the model to the specified device
     model = model.to(device)
