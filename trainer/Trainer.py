@@ -39,10 +39,15 @@ class Trainer:
         """
         self.model.train()
         epoch_loss = 0.0
+        num_batches = 0  # Track the number of non-empty batches
 
         # Use tqdm for progress bar
         pbar = tqdm(self.train_loader, desc="Training", leave=False)
-        for images, doctor_labels, real_labels,_ in pbar:
+        for images, doctor_labels, real_labels, _ in pbar:
+            # Skip empty batches
+            if len(images) == 0:
+                continue
+
             # Move data to the correct device
             images = images.to(self.device)
             doctor_labels = doctor_labels.to(self.device)
@@ -51,6 +56,7 @@ class Trainer:
             # Forward pass
             distances = self.model(images)
             loss = self.criterion(distances, doctor_labels, real_labels)
+            print(loss)
 
             # Backward pass and optimization
             self.optimizer.zero_grad()
@@ -59,12 +65,13 @@ class Trainer:
 
             # Accumulate loss
             epoch_loss += loss.item()
+            num_batches += 1
 
             # Update progress bar
             pbar.set_postfix({"Train Loss": loss.item()})
 
-        # Return average loss for the epoch
-        return epoch_loss / len(self.train_loader)
+        # Return average loss for the epoch (avoid division by zero)
+        return epoch_loss / num_batches if num_batches > 0 else 0.0
 
     def validate_epoch(self):
         """
@@ -72,11 +79,16 @@ class Trainer:
         """
         self.model.eval()
         epoch_loss = 0.0
+        num_batches = 0  # Track the number of non-empty batches
 
         with torch.no_grad():
             # Use tqdm for progress bar
             pbar = tqdm(self.val_loader, desc="Validation", leave=False)
-            for images, doctor_labels, real_labels,_ in pbar:
+            for images, doctor_labels, real_labels, _ in pbar:
+                # Skip empty batches
+                if len(images) == 0:
+                    continue
+
                 # Move data to the correct device
                 images = images.to(self.device)
                 doctor_labels = doctor_labels.to(self.device)
@@ -88,12 +100,13 @@ class Trainer:
 
                 # Accumulate loss
                 epoch_loss += loss.item()
+                num_batches += 1
 
                 # Update progress bar
                 pbar.set_postfix({"Val Loss": loss.item()})
 
-        # Return average loss for the epoch
-        return epoch_loss / len(self.val_loader)
+        # Return average loss for the epoch (avoid division by zero)
+        return epoch_loss / num_batches if num_batches > 0 else 0.0
 
     def save_checkpoint(self, epoch, val_loss):
         """
@@ -146,4 +159,4 @@ class Trainer:
             print(f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
 
         # Plot losses after training
-        self.plot_losses()  
+        self.plot_losses()

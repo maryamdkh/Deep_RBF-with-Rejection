@@ -15,12 +15,19 @@ def balanced_collate_fn(batch):
         image, doctor_label, real_label, group_label = sample
         groups[group_label].append((image, doctor_label, real_label, group_label))
 
-    # Find the minimum number of samples across all groups
-    min_samples = min(len(groups[0]), len(groups[1]), len(groups[2]), len(groups[3]))
+    # Filter out groups with no samples
+    non_empty_groups = {k: v for k, v in groups.items() if len(v) > 0}
+
+    # If no groups have samples, return an empty batch
+    if not non_empty_groups:
+        return torch.tensor([]), torch.tensor([]), torch.tensor([]), torch.tensor([])
+
+    # Find the minimum number of samples across non-empty groups
+    min_samples = min(len(group) for group in non_empty_groups.values())
 
     # Balance the groups by randomly sampling with replacement
     balanced_batch = []
-    for group in groups.values():
+    for group in non_empty_groups.values():
         if len(group) > min_samples:
             # Sample indices with replacement
             indices = np.random.choice(len(group), size=min_samples, replace=True)
