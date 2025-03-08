@@ -36,6 +36,8 @@ def main():
                         help=".csv file containing validation metadata")
     parser.add_argument("--save_dir", type=str, default="checkpoints",
                         help="Directory to save model checkpoints (default: checkpoints)")
+    parser.add_argument("--save_results", type=str, default="figs",
+                        help="Directory to save model resutls (default: figs)")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -66,11 +68,14 @@ def main():
         criterion=criterion,
         optimizer=optimizer,
         device=device,
-        save_dir=args.save_dir
+        save_dir=args.save_dir,
+        save_results=args.save_results
     )
 
     # Train the model
     trainer.train(num_epochs=args.num_epochs)
+    # Perform inference on training data and generate classification report
+    trainer.predict(train_loader, threshold=1.0)
 
 if __name__ == "__main__":
     main()

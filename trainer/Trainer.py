@@ -4,9 +4,11 @@ import torch.optim as optim
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import os
+from sklearn.metrics import classification_report, confusion_matrix
+import seaborn as sns
 
 class Trainer:
-    def __init__(self, model, train_loader, val_loader, criterion, optimizer, device, save_dir):
+    def __init__(self, model, train_loader, val_loader, criterion, optimizer, device, save_dir,save_results):
         """
         Args:
             model (nn.Module): The Deep-RBF network.
@@ -16,6 +18,7 @@ class Trainer:
             optimizer (optim.Optimizer): Optimizer for training.
             device (torch.device): Device to run the model on (e.g., 'cuda' or 'cpu').
             save_dir (str): Directory to save the best model checkpoints.
+            save_results (str): Directory to save the results plot.
         """
         self.model = model
         self.train_loader = train_loader
@@ -24,10 +27,13 @@ class Trainer:
         self.optimizer = optimizer
         self.device = device
         self.save_dir = save_dir
+        self.save_results = save_results
         self.best_val_loss = float('inf')
+        self.best_model_weights = None  # Store the best model weights
 
         # Create save directory if it doesn't exist
         os.makedirs(self.save_dir, exist_ok=True)
+        os.makedirs(self.save_results, exist_ok=True)
 
         # Lists to store loss values for plotting
         self.train_losses = []
@@ -56,7 +62,7 @@ class Trainer:
             # Forward pass
             distances = self.model(images)
             loss = self.criterion(distances, doctor_labels, real_labels)
-            print(loss)
+            # print(loss)
 
             # Backward pass and optimization
             self.optimizer.zero_grad()
@@ -135,6 +141,35 @@ class Trainer:
         plt.title("Training and Validation Losses")
         plt.legend()
         plt.grid(True)
+        plt.savefig(os.path.join(self.save_results,"loss.png"))
+        plt.show()
+
+    def load_best_model(self):
+        """
+        Load the best model weights.
+        """
+        if self.best_model_weights is not None:
+            self.model.load_state_dict(self.best_model_weights)
+            print("Loaded the best model weights.")
+        else:
+            print("No best model weights found. Training might not have started yet.")
+
+    def plot_confusion_matrix(self, true_labels, predicted_labels, class_names):
+        """
+        Plot and save the confusion matrix.
+
+        Args:
+            true_labels (list or np.array): Ground truth labels.
+            predicted_labels (list or np.array): Predicted labels.
+            class_names (list): Names of the classes.
+        """
+        cm = confusion_matrix(true_labels, predicted_labels)
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=class_names, yticklabels=class_names)
+        plt.xlabel("Predicted")
+        plt.ylabel("True")
+        plt.title("Confusion Matrix")
+        plt.savefig(os.path.join(self.save_results, "confusion_matrix.png"))
         plt.show()
 
     def train(self, num_epochs):
@@ -160,3 +195,58 @@ class Trainer:
 
         # Plot losses after training
         self.plot_losses()
+
+    def predict(self, dataloader, threshold=1.0):
+        """
+        Perform inference on a given DataLoader and generate a classification report.
+
+        Args:
+            dataloader (DataLoader): DataLoader for inference.
+            threshold (float): Threshold for rejection. If the minimum distance is greater than this, reject the sample.
+
+        Returns:
+            report (str): Classification report.
+        """
+        self.model.eval()  # Set model to evaluation mode
+        all_predicted_labels = []
+        all_doctor_labels = []
+
+        with torch.no_grad():
+            for images, doctor_labels, _, _ in dataloader:
+                # Skip empty batches
+                if len(images) == 0:
+                    continue
+
+                # Move data to the correct device
+                images = images.to(self.device)
+                doctor_labels = doctor_labels.to(self.device)
+
+                # Predict labels
+                predicted_labels, is_rejected = self.model.inference(images, threshold=threshold)
+
+                # Handle rejected samples (assign label 2)
+                predicted_labels[is_rejected] = 2
+
+                # Collect results
+                all_predicted_labels.extend(predicted_labels.cpu().numpy())
+                all_doctor_labels.extend(doctor_labels.cpu().numpy())
+
+        # Generate classification report
+        target_names = ["control", "parkinson", "rejected"]
+        report = classification_report(all_doctor_labels, all_predicted_labels, target_names=target_names)
+
+        # Print and save classification report
+        print("Classification Report:")
+        print(report)
+
+        # Save classification report to a file
+        report_path = os.path.join(self.save_results, "classification_report.txt")
+        with open(report_path, "w") as f:
+            f.write(report)
+
+        print(f"Classification report saved to {report_path}")
+
+        # Plot confusion matrix
+        self.plot_confusion_matrix(all_doctor_labels, all_predicted_labels, target_names)
+
+        return report

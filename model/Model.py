@@ -42,3 +42,29 @@ class DeepRBFNetwork(nn.Module):
         distances = torch.stack(distances, dim=1)  # Shape: (batch_size, num_classes)
 
         return distances
+
+    def inference(self, x, threshold=1.0):
+        """
+        Perform inference for a batch of samples.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, ...).
+            threshold (float): Threshold for rejection. If the minimum distance is greater than this, reject the sample.
+
+        Returns:
+            predicted_labels (torch.Tensor): Predicted labels for each sample. Shape: (batch_size,).
+            is_rejected (torch.Tensor): Boolean tensor indicating whether each sample is rejected. Shape: (batch_size,).
+        """
+        # Compute distances for all classes
+        distances = self.forward(x)  # Shape: (batch_size, num_classes)
+
+        # Find the minimum distance and corresponding class for each sample
+        min_distances, predicted_labels = torch.min(distances, dim=1)  # Shapes: (batch_size,), (batch_size,)
+
+        # Determine if the sample should be rejected
+        is_rejected = min_distances > threshold  # Shape: (batch_size,)
+
+        # Set predicted labels to -1 for rejected samples
+        predicted_labels[is_rejected] = -1
+
+        return predicted_labels, is_rejected
