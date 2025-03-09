@@ -85,7 +85,15 @@ class Trainer:
     def validate_epoch(self):
         """
         Validate the model for one epoch.
+
+        Returns:
+            float: Average validation loss for the epoch. Returns 0.0 if no validation data is available or all batches are empty.
         """
+        # If there is no validation data, return 0.0
+        if self.val_loader is None:
+            print("No validation data provided. Skipping validation.")
+            return 0.0
+
         self.model.eval()
         epoch_loss = 0.0
         num_batches = 0  # Track the number of non-empty batches
@@ -93,7 +101,10 @@ class Trainer:
         with torch.no_grad():
             # Use tqdm for progress bar
             pbar = tqdm(self.val_loader, desc="Validation", leave=False)
-            for images, doctor_labels, real_labels, _ in pbar:
+            for batch in pbar:
+                # Unpack the batch (assuming batch is a tuple of (images, doctor_labels, real_labels, _))
+                images, doctor_labels, real_labels, _ = batch
+
                 # Skip empty batches
                 if len(images) == 0:
                     continue
@@ -115,7 +126,11 @@ class Trainer:
                 pbar.set_postfix({"Val Loss": loss.item()})
 
         # Return average loss for the epoch (avoid division by zero)
-        return epoch_loss / num_batches if num_batches > 0 else 0.0
+        if num_batches > 0:
+            return epoch_loss / num_batches
+        else:
+            print("All validation batches were empty. Returning 0.0 as validation loss.")
+            return 0.0
 
     def save_checkpoint(self, val_loss):
         """
