@@ -81,7 +81,7 @@ def train_fold(fold_id, train_df, val_df, args, device):
     val_loader = None
     if not val_df.empty:
         val_dataset = ParkinsonDataset(dataframe=val_df, data_dir=args.data_dir, is_train=False)
-        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=4, collate_fn=balanced_collate_fn)
+        val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=4, collate_fn=balanced_collate_fn)
 
     # Initialize trainer
     trainer = Trainer(

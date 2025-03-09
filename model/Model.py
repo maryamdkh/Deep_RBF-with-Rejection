@@ -20,20 +20,41 @@ class DeepRBFNetwork(nn.Module):
 
     def forward(self, x):
         # Extract features
-        features = self.feature_extractor(x)
+        features = self.feature_extractor(x)  # Shape: (batch_size, feature_dim)
         features = torch.squeeze(features)  # Shape: (batch_size, feature_dim)
-        # print("features:", features.shape)
+
+        # Debugging: Print the shape of features
+        # print(f"Features shape: {features.shape}")
+# 
+        # Ensure the batch dimension is preserved
+        if features.dim() == 1:
+            features = features.unsqueeze(0)  # Add batch dimension if missing
+
+        # Debugging: Print the shape of features after unsqueeze
+        # print(f"Features shape after unsqueeze: {features.shape}")
+
+        # Ensure features has the correct shape (batch_size, feature_dim)
+        if features.shape[1] != self.feature_dim:
+            raise ValueError(
+                f"Expected features to have shape (batch_size, {self.feature_dim}), "
+                f"but got {features.shape}"
+            )
 
         # Compute distances for each class
         distances = []
         for k in range(self.num_classes):
             A_k = self.A[k]  # Shape: (feature_dim, feature_dim)
-            # print("A_k:",A_k.shape)
             b_k = self.b[k]  # Shape: (feature_dim,)
-            # print("b_k:",b_k.shape)
+
+            # Debugging: Print the shapes of A_k and b_k
+            # print(f"A_k shape: {A_k.shape}")
+            # print(f"b_k shape: {b_k.shape}")
 
             # Compute (A_k^T * features^T)^T + b_k
             transformed_features = torch.matmul(features, A_k.T) + b_k  # Shape: (batch_size, feature_dim)
+
+            # Debugging: Print the shape of transformed_features
+            # print(f"Transformed features shape: {transformed_features.shape}")
 
             # Compute L2 norm (distance)
             d_k = torch.norm(transformed_features, p=2, dim=1)  # Shape: (batch_size,)

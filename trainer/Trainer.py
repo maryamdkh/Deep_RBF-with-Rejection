@@ -104,6 +104,7 @@ class Trainer:
             for batch in pbar:
                 # Unpack the batch (assuming batch is a tuple of (images, doctor_labels, real_labels, _))
                 images, doctor_labels, real_labels, _ = batch
+                print(images.shape)
 
                 # Skip empty batches
                 if len(images) == 0:
