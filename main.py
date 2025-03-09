@@ -101,7 +101,28 @@ def train_fold(fold_id, train_df, val_df, args, device):
     trainer.train(num_epochs=args.num_epochs)
   
 
+def read_csv_safe(file_path):
+    """
+    Safely read a CSV file. If the file is empty, return an empty DataFrame.
 
+    Args:
+        file_path (str): Path to the CSV file.
+
+    Returns:
+        pd.DataFrame: DataFrame containing the data from the CSV file, or an empty DataFrame if the file is empty.
+    """
+    try:
+        df = pd.read_csv(file_path)
+        return df
+    except pd.errors.EmptyDataError:
+        print(f"Warning: The file '{file_path}' is empty. Returning an empty DataFrame.")
+        return pd.DataFrame()  # Return an empty DataFrame
+    except FileNotFoundError:
+        print(f"Error: The file '{file_path}' does not exist.")
+        return pd.DataFrame()  # Return an empty DataFrame
+    except Exception as e:
+        print(f"An unexpected error occurred while reading '{file_path}': {e}")
+        return pd.DataFrame()  # Return an empty DataFrame
 
 
 def main():
@@ -143,13 +164,13 @@ def main():
 
     # Train a model for each fold
     best_model_paths = []
-    for fold_id in range(args.num_folds):
+    for fold_id in range(12,args.num_folds):
         # Load train and validation CSV files for the current fold
         train_csv_path = os.path.join(args.folds_root_dir_train, f"train_df_fold_{fold_id + 1}.csv")
         val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
 
-        train_df = pd.read_csv(train_csv_path)
-        val_df = pd.read_csv(val_csv_path)
+        train_df = read_csv_safe(train_csv_path)
+        val_df = read_csv_safe(val_csv_path)
 
         # Train the model for the current fold
         train_fold(fold_id, train_df, val_df, args, device)

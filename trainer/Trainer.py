@@ -132,17 +132,17 @@ class Trainer:
             print("All validation batches were empty. Returning 0.0 as validation loss.")
             return 0.0
 
-    def save_checkpoint(self, val_loss):
+    def save_checkpoint(self, loss):
         """
-        Save the model checkpoint if the validation loss improves.
+        Save the model checkpoint if the loss improves.
         """
-        if val_loss < self.best_val_loss:
-            self.best_val_loss = val_loss
-            checkpoint_path = os.path.join(self.save_dir, f"best_model_epoch_{self.fold}.pt")
+        if loss < self.best_val_loss:
+            self.best_val_loss = loss
+            checkpoint_path = os.path.join(self.save_dir, f"best_model_{self.fold}.pt")
             torch.save({
                 'model_state_dict': self.model.state_dict(),
             }, checkpoint_path)
-            print(f"Saved best model checkpoint for fold {self.fold} with val loss {val_loss:.4f}")
+            print(f"Saved best model checkpoint for fold {self.fold} with loss {loss:.4f}")
 
     def plot_losses(self):
         """
@@ -204,7 +204,10 @@ class Trainer:
             # self.scheduler.step()
 
             # Save the best model checkpoint
-            self.save_checkpoint(val_loss)
+            if self.val_loader is None:
+              self.save_checkpoint(train_loss)
+            else:
+              self.save_checkpoint(val_loss)
 
             # Print epoch results
             print(f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
