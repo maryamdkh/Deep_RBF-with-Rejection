@@ -14,10 +14,7 @@ def load_feature_extractor(data_path, device):
     Returns:
         model (nn.Module): Modified model with the last two layers removed.
     """
-    # Check if the model path exists
-    if not os.path.exists(data_path):
-        raise FileNotFoundError(f"Path {data_path} does not exist.")
-
+    
     # Load the pretrained WideResNet-50-2 model
     model = torch.hub.load('pytorch/vision:v0.10.0', 'wide_resnet50_2', pretrained=True)
     model.fc = nn.Linear(model.fc.in_features, 3)
@@ -25,6 +22,10 @@ def load_feature_extractor(data_path, device):
 
     # Load the model's state dict (if provided)
     if data_path:
+        # Check if the model path exists
+        if not os.path.exists(data_path):
+          raise FileNotFoundError(f"Path {data_path} does not exist.")
+
         model.load_state_dict(torch.load(data_path))
 
     # Remove the last two layers (avgpool and fc)

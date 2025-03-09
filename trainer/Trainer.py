@@ -8,7 +8,8 @@ from sklearn.metrics import classification_report, confusion_matrix
 import seaborn as sns
 
 class Trainer:
-    def __init__(self, model, train_loader, val_loader, criterion, optimizer, device, save_dir,save_results):
+    def __init__(self, model, train_loader=None, val_loader=None,fold=None, criterion=None\
+    , optimizer=None,scheduler=None, device=None, save_dir=None,save_results=None):
         """
         Args:
             model (nn.Module): The Deep-RBF network.
@@ -25,6 +26,8 @@ class Trainer:
         self.val_loader = val_loader
         self.criterion = criterion
         self.optimizer = optimizer
+        self.scheduler = scheduler
+        self.fold = fold
         self.device = device
         self.save_dir = save_dir
         self.save_results = save_results
@@ -114,20 +117,17 @@ class Trainer:
         # Return average loss for the epoch (avoid division by zero)
         return epoch_loss / num_batches if num_batches > 0 else 0.0
 
-    def save_checkpoint(self, epoch, val_loss):
+    def save_checkpoint(self, val_loss):
         """
         Save the model checkpoint if the validation loss improves.
         """
         if val_loss < self.best_val_loss:
             self.best_val_loss = val_loss
-            checkpoint_path = os.path.join(self.save_dir, f"best_model_epoch_{epoch}.pt")
+            checkpoint_path = os.path.join(self.save_dir, f"best_model_epoch_{self.fold}.pt")
             torch.save({
-                'epoch': epoch,
                 'model_state_dict': self.model.state_dict(),
-                'optimizer_state_dict': self.optimizer.state_dict(),
-                'val_loss': val_loss,
             }, checkpoint_path)
-            print(f"Saved best model checkpoint at epoch {epoch} with val loss {val_loss:.4f}")
+            print(f"Saved best model checkpoint for fold {self.fold} with val loss {val_loss:.4f}")
 
     def plot_losses(self):
         """
@@ -141,7 +141,7 @@ class Trainer:
         plt.title("Training and Validation Losses")
         plt.legend()
         plt.grid(True)
-        plt.savefig(os.path.join(self.save_results,"loss.png"))
+        plt.savefig(os.path.join(self.save_results,f"loss_{self.fold}.png"))
         plt.show()
 
     def load_best_model(self):
@@ -169,7 +169,7 @@ class Trainer:
         plt.xlabel("Predicted")
         plt.ylabel("True")
         plt.title("Confusion Matrix")
-        plt.savefig(os.path.join(self.save_results, "confusion_matrix.png"))
+        plt.savefig(os.path.join(self.save_results, f"confusion_matrix_{self.fold}.png"))
         plt.show()
 
     def train(self, num_epochs):
@@ -177,7 +177,7 @@ class Trainer:
         Train the model for a given number of epochs.
         """
         for epoch in range(num_epochs):
-            print(f"Epoch {epoch + 1}/{num_epochs}")
+            print(f"Fold {self.fold}, Epoch {epoch + 1}/{num_epochs}")
 
             # Train and validate
             train_loss = self.train_epoch()
@@ -186,9 +186,10 @@ class Trainer:
             # Save losses for plotting
             self.train_losses.append(train_loss)
             self.val_losses.append(val_loss)
+            # self.scheduler.step()
 
             # Save the best model checkpoint
-            self.save_checkpoint(epoch + 1, val_loss)
+            self.save_checkpoint(val_loss)
 
             # Print epoch results
             print(f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
