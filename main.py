@@ -62,7 +62,11 @@ def train_fold(fold_id, train_df, val_df, args, device):
     print(f"Training fold {fold_id + 1}/{args.num_folds}")
 
     # Load the feature extractor model
-    feature_extractor = load_feature_extractor(os.path.join(args.feature_extractor, f"best_model_fold_{fold_id+1}.pth"), device)
+    if args.feature_extractor:
+      feature_extractor = load_feature_extractor(os.path.join(args.feature_extractor, f"best_model_fold_{fold_id+1}.pth"), device)
+    else:
+      feature_extractor = load_feature_extractor(device=device)
+
     feature_extractor.eval()  # Set to evaluation mode (no training)
 
     # Define model, loss, optimizer, and data loaders
@@ -75,13 +79,13 @@ def train_fold(fold_id, train_df, val_df, args, device):
 
     # Load training dataset
     train_dataset = ParkinsonDataset(dataframe=train_df, data_dir=args.data_dir, is_train=True)
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, collate_fn=balanced_collate_fn)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2, collate_fn=balanced_collate_fn)
 
     # Initialize validation dataset and DataLoader only if val_df is not empty
     val_loader = None
     if not val_df.empty:
         val_dataset = ParkinsonDataset(dataframe=val_df, data_dir=args.data_dir, is_train=False)
-        val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=4, collate_fn=balanced_collate_fn)
+        val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=2)
 
     # Initialize trainer
     trainer = Trainer(
@@ -128,7 +132,7 @@ def read_csv_safe(file_path):
 def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Train Deep-RBF Network with Rejection")
-    parser.add_argument("--feature_extractor", type=str, required=True,
+    parser.add_argument("--feature_extractor", type=str, required=False, default=None,
                         help="Root to the PyTorch model dir to use as the feature extractor")
     parser.add_argument("--num_classes", type=int, required=True,
                         help="Number of classes in the dataset")
@@ -164,13 +168,15 @@ def main():
 
     # Train a model for each fold
     best_model_paths = []
-    for fold_id in range(12,args.num_folds):
+    for fold_id in range(5,11):
         # Load train and validation CSV files for the current fold
         train_csv_path = os.path.join(args.folds_root_dir_train, f"train_df_fold_{fold_id + 1}.csv")
         val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
 
         train_df = read_csv_safe(train_csv_path)
         val_df = read_csv_safe(val_csv_path)
+        # print(val_df)
+        # break
 
         # Train the model for the current fold
         train_fold(fold_id, train_df, val_df, args, device)
