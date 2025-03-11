@@ -176,7 +176,7 @@ class Trainer:
         Train the model for a given number of epochs.
         """
         for epoch in range(num_epochs):
-            print(f"Fold {self.fold}, Epoch {epoch + 1}/{num_epochs}")
+            print(f"Fold {self.fold}, Epoch {epoch + 1}/{num_epochs}, LR {self.optimizer.param_groups[0]['lr']}")
 
             # Train and validate
             train_loss = self.train_epoch()
@@ -185,7 +185,7 @@ class Trainer:
             # Save losses for plotting
             self.train_losses.append(train_loss)
             self.val_losses.append(val_loss)
-            # self.scheduler.step()
+            self.scheduler.step()
 
             # Save the best model checkpoint
             if self.val_loader is None:
