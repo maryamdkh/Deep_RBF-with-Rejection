@@ -2,7 +2,7 @@ import os
 import torch
 import torch.nn as nn
 
-def load_feature_extractor(data_path, device):
+def load_feature_extractor(device, data_path=None):
     
     """
     Load a pretrained WideResNet-50-2 model and modify it to use layers before the last two layers (avgpool and fc) as the feature extractor.
