@@ -18,7 +18,7 @@ def plot_confusion_matrix(true_labels, predicted_labels, class_names,save_path):
     plt.xlabel("Predicted")
     plt.ylabel("True")
     plt.title("Confusion Matrix")
-    plt.savefig(save_path)
+    plt.savefig(os.path.join(save_path,"CM.png"))
     plt.show()
 
 def generate_classification_report(all_doctor_labels, all_predicted_labels,report_path):
@@ -43,12 +43,12 @@ def generate_classification_report(all_doctor_labels, all_predicted_labels,repor
     print(report)
 
     # Save classification report to a file
-    with open(report_path, "w") as f:
+    with open(os.path.join(save_path,"CM.txt"), "w") as f:
         f.write(report)
 
     print(f"Classification report saved to {report_path}")
 
     # Plot confusion matrix
-    plot_confusion_matrix(all_doctor_labels, all_predicted_labels, target_names)
+    plot_confusion_matrix(all_doctor_labels, all_predicted_labels, target_names,save_path)
 
     return report
