@@ -31,7 +31,7 @@ def validate_fold(fold_id, df, args, device):
     feature_extractor.eval() 
 
     # Define model, loss, optimizer, and data loaders
-    model = DeepRBFNetwork(feature_extractor, args.num_classes, args.feature_dim)
+    model = DeepRBFNetwork(feature_extractor, args)
     model = model.to(device)
 
     dataset = ParkinsonDataset(dataframe= df, data_dir=args.data_dir, is_train=False)
