@@ -1,6 +1,62 @@
 import matplotlib.pyplot as plt
 import torch
 import numpy as np
+import seaborn as sns
+import pandas as pd
+
+def plot_group_distribution(dataset,file_path, title="Group Distribution"):
+    """
+    Plot the distribution of each group before and after oversampling.
+
+    Args:
+        title (str): Title of the plot.
+    """
+    dataframe = dataset.dataframe
+    oversampled_indices = dataset.oversampled_indices
+
+    # Create a DataFrame for the original data
+    original_df = dataframe.copy()
+    original_df["group_label"] = -1  # Initialize group labels
+
+    # Assign group labels to the original DataFrame
+    for idx in range(len(original_df)):
+        _, _, group_label = dataset._get_labels_and_group(idx)
+        original_df.at[idx, "group_label"] = group_label
+
+    # Create a DataFrame for the oversampled data
+    oversampled_df = pd.DataFrame({
+        "group_label": [dataset._get_labels_and_group(idx)[2] for idx in oversampled_indices]
+    })
+
+    # Plot settings
+    sns.set(style="whitegrid")
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig.suptitle(title, fontsize=16)
+
+    # Plot original distribution
+    sns.countplot(x="group_label", data=original_df, ax=axes[0], palette="Set2")
+    axes[0].set_title("Before Oversampling")
+    axes[0].set_xlabel("Group Label")
+    axes[0].set_ylabel("Count")
+
+    # Plot oversampled distribution
+    sns.countplot(x="group_label", data=oversampled_df, ax=axes[1], palette="Set2")
+    axes[1].set_title("After Oversampling")
+    axes[1].set_xlabel("Group Label")
+    axes[1].set_ylabel("Count")
+
+    # Add annotations for clarity
+    for ax in axes:
+        for p in ax.patches:
+            ax.annotate(f"{int(p.get_height())}", (p.get_x() + p.get_width() / 2., p.get_height()),
+                        ha="center", va="center", fontsize=10, color="black", xytext=(0, 5),
+                        textcoords="offset points")
+
+    plt.tight_layout()
+    plt.savefig(file_path)
+    plt.show()
+
+
 
 def show_images_from_dataloader(dataloader, num_images=10):
     """

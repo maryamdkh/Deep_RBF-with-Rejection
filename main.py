@@ -12,7 +12,7 @@ from model.utils import load_feature_extractor
 from loss.MLLoss import MLLoss
 from trainer.Trainer import Trainer
 from data.Dataset import ParkinsonDataset
-from data.Dataloader import balanced_collate_fn
+from data.utils import plot_group_distribution
 
 def validate_fold(fold_id, df, args, device):
     """
@@ -82,12 +82,19 @@ def train_fold(fold_id, train_df, val_df, args, device):
 
     # Load training dataset
     train_dataset = ParkinsonDataset(dataframe=train_df, data_dir=args.data_dir, is_train=True)
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2, collate_fn=balanced_collate_fn)
+    plot_group_distribution(train_dataset,
+                            file_path = f"{args.save_results}/distributions/train_{fold_id+1}.png", 
+                            title=f"Group Distribution Train Fold {fold_id+1}")
+
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
 
     # Initialize validation dataset and DataLoader only if val_df is not empty
     val_loader = None
     if not val_df.empty:
         val_dataset = ParkinsonDataset(dataframe=val_df, data_dir=args.data_dir, is_train=False)
+        plot_group_distribution(val_dataset,
+                            file_path = f"{args.save_results}/distributions/valid_{fold_id+1}.png", 
+                            title=f"Group Distribution Validation Fold {fold_id+1}")
         val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=2)
 
     # Initialize trainer
@@ -100,8 +107,8 @@ def train_fold(fold_id, train_df, val_df, args, device):
         optimizer=optimizer,
         scheduler=scheduler,
         device=device,
-        save_dir=os.path.join(args.save_dir, f"fold_{fold_id + 1}"),
-        save_results=os.path.join(args.save_results, f"fold_{fold_id + 1}")
+        save_dir=os.path.join(args.save_dir),
+        save_results=os.path.join(args.save_results,"loss")
     )
 
     # Train the model
@@ -172,48 +179,48 @@ def main():
     # Create directories for saving checkpoints and results
     os.makedirs(args.save_dir, exist_ok=True)
     os.makedirs(args.save_results, exist_ok=True)
+    os.makedirs(os.path.join(args.save_results,"distributions"), exist_ok=True)
+    os.makedirs(os.path.join(args.save_results,"loss"), exist_ok=True)
 
     # Train a model for each fold
-    # best_model_paths = []
-    # for fold_id in range(12,14):
-    #     # Load train and validation CSV files for the current fold
-    #     train_csv_path = os.path.join(args.folds_root_dir_train, f"train_df_fold_{fold_id + 1}.csv")
-    #     val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
+    best_model_paths = []
+    for fold_id in range(1):
+        # Load train and validation CSV files for the current fold
+        train_csv_path = os.path.join(args.folds_root_dir_train, f"train_df_fold_{fold_id + 1}.csv")
+        val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
 
-    #     train_df = read_csv_safe(train_csv_path)
-    #     val_df = read_csv_safe(val_csv_path)
-    #     # print(val_df)
-    #     # break
+        train_df = read_csv_safe(train_csv_path)
+        val_df = read_csv_safe(val_csv_path)
 
-    #     # Train the model for the current fold
-    #     train_fold(fold_id, train_df, val_df, args, device)
+        # Train the model for the current fold
+        train_fold(fold_id, train_df, val_df, args, device)
     
 
-    # print("Training completed for all folds.")
+    print("Training completed for all folds.")
 
 
     # Initialize lists to collect all predicted and true labels across all folds
-    all_folds_predicted_labels = []
-    all_folds_doctor_labels = []
+    # all_folds_predicted_labels = []
+    # all_folds_doctor_labels = []
 
-    # Validate a model for each fold
-    for fold_id in range(args.num_folds):
-        # Load validation CSV file for the current fold
-        val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
-        val_df = read_csv_safe(val_csv_path)
+    # # Validate a model for each fold
+    # for fold_id in range(args.num_folds):
+    #     # Load validation CSV file for the current fold
+    #     val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
+    #     val_df = read_csv_safe(val_csv_path)
         
-        # Validate the model for the current fold
-        all_predicted_labels, all_doctor_labels = validate_fold(fold_id, val_df, args, device)
+    #     # Validate the model for the current fold
+    #     all_predicted_labels, all_doctor_labels = validate_fold(fold_id, val_df, args, device)
         
-        # Collect the predicted and true labels for this fold
-        all_folds_predicted_labels.extend(all_predicted_labels)
-        all_folds_doctor_labels.extend(all_doctor_labels)
+    #     # Collect the predicted and true labels for this fold
+    #     all_folds_predicted_labels.extend(all_predicted_labels)
+    #     all_folds_doctor_labels.extend(all_doctor_labels)
 
-    print("Validating completed for all folds.")
+    # print("Validating completed for all folds.")
 
-    # Plot a confusion matrix for all folds combined
-    target_names = ["control", "parkinson", "rejected"]  # Adjust based on your labels
-    plot_confusion_matrix(all_folds_doctor_labels, all_folds_predicted_labels, target_names,args.save_results)
+    # # Plot a confusion matrix for all folds combined
+    # target_names = ["control", "parkinson", "rejected"]  # Adjust based on your labels
+    # plot_confusion_matrix(all_folds_doctor_labels, all_folds_predicted_labels, target_names,args.save_results)
 
 if __name__ == "__main__":
     main()

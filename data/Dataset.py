@@ -52,7 +52,7 @@ class ParkinsonDataset(Dataset):
         # Group indices by group_label
         self.group_indices = {0: [], 1: [], 2: [], 3: []}
         for idx in range(len(self.dataframe)):
-            _, doctor_label, real_label, group_label = self._get_labels_and_group(idx)
+            doctor_label, real_label, group_label = self._get_labels_and_group(idx)
             self.group_indices[group_label].append(idx)
 
         # Oversample indices
