@@ -3,24 +3,26 @@ import pandas as pd
 from PIL import Image
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
+import numpy as np
+import random
 
 class ParkinsonDataset(Dataset):
-    def __init__(self, dataframe, data_dir, transform=None, is_train=True):
+    def __init__(self, dataframe, data_dir, transform=None, is_train=True, oversample_option=1, k=None):
         """
         Args:
             dataframe (pd.DataFrame): DataFrame containing image file paths, doctor_label, and real_label.
             data_dir (str): Root directory where images are stored.
             transform (callable, optional): Transform to be applied to the images.
             is_train (bool): Whether the dataset is for training (default: True).
-
-        Improve:
-            image: group_label (indices of each group  (4)) -> balance the indices (approximate, weighted) ->sample with repetition (shuffle)- >max or more length (4 new arrays)
-            in sampling equally get_item from these 4 arrays. 
+            oversample_option (int): 1 for equal and balanced sampling, 2 for weighted sampling.
+            k (int, optional): Constant number to oversample to. If None, oversample to the max length within each pair.
         """
         self.dataframe = dataframe
         self.data_dir = data_dir
         self.transform = transform
         self.is_train = is_train
+        self.oversample_option = oversample_option
+        self.k = k
 
         # Define label mappings
         self.label_mapping = {"control": 0, "parkinson": 1, "unknown": 2}
@@ -47,12 +49,19 @@ class ParkinsonDataset(Dataset):
                 self.normalize          # Apply normalization
             ])
 
-    def __len__(self):
-        return len(self.dataframe)
+        # Group indices by group_label
+        self.group_indices = {0: [], 1: [], 2: [], 3: []}
+        for idx in range(len(self.dataframe)):
+            _, doctor_label, real_label, group_label = self._get_labels_and_group(idx)
+            self.group_indices[group_label].append(idx)
 
-    def __getitem__(self, idx):
-        # Get image path and labels from the DataFrame
-        img_path = os.path.join(self.data_dir, self.dataframe.iloc[idx, 0])  # Assuming the first column is the image path
+        # Oversample indices
+        self.oversampled_indices = self._oversample_indices()
+
+    def _get_labels_and_group(self, idx):
+        """
+        Helper function to get labels and group label for a given index.
+        """
         doctor_label_str = self.dataframe.iloc[idx, 1]  # Assuming the second column is doctor_label
         real_label_str = self.dataframe.iloc[idx, 2]    # Assuming the third column is real_label
 
@@ -63,15 +72,6 @@ class ParkinsonDataset(Dataset):
         # Validate labels
         if doctor_label == -1 or real_label == -1:
             raise ValueError(f"Invalid label found: doctor_label={doctor_label_str}, real_label={real_label_str}")
-
-        # Load the image
-        image = Image.open(img_path).convert('RGB')  # Ensure image is in RGB format
-
-        # Apply transformations
-        if self.transform:
-            image = self.transform(image)
-        else:
-            image = self.augmentation(image)
 
         # Determine the group label
         if doctor_label == 0:  # control
@@ -84,6 +84,90 @@ class ParkinsonDataset(Dataset):
             group_label = 3  # Group 4: unknown_parkinson
         else:
             raise ValueError("Invalid label combination")
+
+        return doctor_label, real_label, group_label
+
+    def _oversample_indices(self):
+        """
+        Oversample indices for each group to balance the dataset.
+        """
+        # Determine target lengths for each pair
+        pair1_lengths = [len(self.group_indices[0]), len(self.group_indices[1])]
+        pair2_lengths = [len(self.group_indices[2]), len(self.group_indices[3])]
+
+        target_pair1 = self.k if self.k is not None else max(pair1_lengths)
+        target_pair2 = self.k if self.k is not None else max(pair2_lengths)
+
+        # Oversample indices for each group
+        oversampled_indices = {}
+        for group_label in self.group_indices:
+            if group_label in [0, 1]:
+                target_length = target_pair1
+            else:
+                target_length = target_pair2
+
+            indices = self.group_indices[group_label]
+            oversampled_indices[group_label] = self._oversample_group(indices, target_length)
+
+        # Combine all oversampled indices into a single list
+        combined_indices = []
+        for group_label in oversampled_indices:
+            combined_indices.extend(oversampled_indices[group_label])
+
+        # Shuffle the combined indices
+        random.shuffle(combined_indices)
+
+        return combined_indices
+
+    def _oversample_group(self, indices, target_length):
+        """
+        Oversample a group's indices to the target length.
+        """
+        if self.oversample_option == 1:
+            # Equal and balanced sampling
+            return self._oversample_equal(indices, target_length)
+        elif self.oversample_option == 2:
+            # Weighted sampling
+            return self._oversample_weighted(indices, target_length)
+        else:
+            raise ValueError(f"Invalid oversample_option: {self.oversample_option}")
+
+    def _oversample_equal(self, indices, target_length):
+        """
+        Oversample indices to the target length by repeating samples.
+        """
+        if len(indices) == 0:
+            return []
+        return list(np.random.choice(indices, size=target_length, replace=True))
+
+    def _oversample_weighted(self, indices, target_length):
+        """
+        Oversample indices to the target length with weighted sampling.
+        """
+        if len(indices) == 0:
+            return []
+        weights = np.ones(len(indices)) / len(indices)  # Higher weight for shorter arrays
+        return list(np.random.choice(indices, size=target_length, replace=True, p=weights))
+
+    def __len__(self):
+        return len(self.oversampled_indices)
+
+    def __getitem__(self, idx):
+        # Get the oversampled index
+        oversampled_idx = self.oversampled_indices[idx]
+
+        # Get image path and labels from the DataFrame
+        img_path = os.path.join(self.data_dir, self.dataframe.iloc[oversampled_idx, 0])  # Assuming the first column is the image path
+        doctor_label, real_label, group_label = self._get_labels_and_group(oversampled_idx)
+
+        # Load the image
+        image = Image.open(img_path).convert('RGB')  # Ensure image is in RGB format
+
+        # Apply transformations
+        if self.transform:
+            image = self.transform(image)
+        else:
+            image = self.augmentation(image)
 
         # Return image, doctor_label, real_label, and group_label
         return image, doctor_label, real_label, group_label
