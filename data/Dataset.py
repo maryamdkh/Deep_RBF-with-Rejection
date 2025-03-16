@@ -12,6 +12,10 @@ class ParkinsonDataset(Dataset):
             data_dir (str): Root directory where images are stored.
             transform (callable, optional): Transform to be applied to the images.
             is_train (bool): Whether the dataset is for training (default: True).
+
+        Improve:
+            image: group_label (indices of each group  (4)) -> balance the indices (approximate, weighted) ->sample with repetition (shuffle)- >max or more length (4 new arrays)
+            in sampling equally get_item from these 4 arrays. 
         """
         self.dataframe = dataframe
         self.data_dir = data_dir

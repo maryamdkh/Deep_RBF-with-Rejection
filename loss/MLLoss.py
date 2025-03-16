@@ -2,10 +2,15 @@ import torch
 import torch.nn as nn
 
 class MLLoss(nn.Module):
-    def __init__(self, lambda_margin=1.0):
+    def __init__(self, lambda_margin=500):
         """
         Args:
             lambda_margin (float): Margin for hinge loss.
+
+        Improve:
+            instead of max -> softplus 
+            EDA -> group samples (balance group 1 2 more impo) (1,2 and 3,4 seperate balanced) 
+            lambda_margin ->400-500  
         """
         super(MLLoss, self).__init__()
         self.lambda_margin = lambda_margin
@@ -36,11 +41,13 @@ class MLLoss(nn.Module):
 
                 for j in range(1, distances.size(1)):  # Maximize distance to other classes
                     loss = loss + torch.max(torch.tensor(0.0, device=distances.device), self.lambda_margin - d[j])
+                    
             elif doctor_label.item()  == 1:  # Group 2
                 loss = loss + d[1]  # Minimize distance to parkinson
                 for j in range(distances.size(1)):  # Maximize distance to other classes
                     if j != 1:
                         loss = loss + torch.max(torch.tensor(0.0, device=distances.device), self.lambda_margin - d[j])
+
             elif doctor_label.item()  == 2:  # Rejection groups
                 if real_label.item()  == 0:  # Group 3
                     loss = loss + torch.max(torch.tensor(0.0, device=distances.device), self.lambda_margin - d[1])  # Maximize distance to parkinson

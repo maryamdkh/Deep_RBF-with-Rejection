@@ -2,21 +2,24 @@ import torch
 import torch.nn as nn
 
 class DeepRBFNetwork(nn.Module):
-    def __init__(self, feature_extractor, num_classes, feature_dim):
+    def __init__(self, feature_extractor,args):
         """
         Args:
             feature_extractor (nn.Module): Feature extractor network.
             num_classes (int): Number of classes.
-            feature_dim (int): Dimension of the feature vector output by the feature extractor.
+            feature_dim (int): Dimension of the feature vector output by the feature extractor..
+        Improve:
+            distance -> l1
+            init - > b: lambda_max /2 ; A: torch.randn() * 0.001 (or smaller) ; lambda 500 -> 200
         """
         super(DeepRBFNetwork, self).__init__()
         self.feature_extractor = feature_extractor
-        self.num_classes = num_classes
-        self.feature_dim = feature_dim
+        self.num_classes = args.num_classes
+        self.feature_dim = args.feature_dim
 
         # Define trainable parameters for each class
-        self.A = nn.Parameter(torch.randn(num_classes, feature_dim, feature_dim))  # A_k matrices
-        self.b = nn.Parameter(torch.randn(num_classes, feature_dim))              # b_k vectors
+        self.A = nn.Parameter(torch.randn(self.num_classes, self.feature_dim, self.feature_dim) * 0.001)  # A_k matrices
+        self.b = nn.Parameter(torch.full((self.num_classes, self.feature_dim), args.lambda_margin / 2))      # b_k vectors
 
     def forward(self, x):
         # Extract features
@@ -56,8 +59,8 @@ class DeepRBFNetwork(nn.Module):
             # Debugging: Print the shape of transformed_features
             # print(f"Transformed features shape: {transformed_features.shape}")
 
-            # Compute L2 norm (distance)
-            d_k = torch.norm(transformed_features, p=2, dim=1)  # Shape: (batch_size,)
+            # Compute L1 norm (distance)
+            d_k = torch.norm(transformed_features, p=1, dim=1)  # Shape: (batch_size,)
             distances.append(d_k)
 
         distances = torch.stack(distances, dim=1)  # Shape: (batch_size, num_classes)

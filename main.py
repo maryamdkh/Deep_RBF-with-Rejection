@@ -73,7 +73,7 @@ def train_fold(fold_id, train_df, val_df, args, device):
     feature_extractor.eval()  # Set to evaluation mode (no training)
 
     # Define model, loss, optimizer, and data loaders
-    model = DeepRBFNetwork(feature_extractor, args.num_classes, args.feature_dim)
+    model = DeepRBFNetwork(feature_extractor, args)
     criterion = MLLoss(lambda_margin=args.lambda_margin)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.num_epochs, eta_min=args.lr * 0.01)
