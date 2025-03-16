@@ -163,7 +163,7 @@ def main():
                         help="Directory to save model results (default: figs)")
     parser.add_argument("--pre_model_dir", type=str, default="",
                         help="Directory to the pretrained models.")
-    parser.add_argument("--rejection_thresh", type=int, default=16,
+    parser.add_argument("--rejection_thresh", type=float, default=16,
                         help="Threshold used to reject the sample.")
     args = parser.parse_args()
 
