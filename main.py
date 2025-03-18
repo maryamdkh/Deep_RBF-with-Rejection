@@ -35,7 +35,7 @@ def validate_fold(fold_id, df, args, device):
     model = model.to(device)
 
     dataset = ParkinsonDataset(dataframe= df, data_dir=args.data_dir, is_train=False)
-    data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=4)
+    data_loader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=2)
 
     # Initialize trainer
     trainer = Trainer(
@@ -81,7 +81,7 @@ def train_fold(fold_id, train_df, val_df, args, device):
     model = model.to(device)
 
     # Load training dataset
-    train_dataset = ParkinsonDataset(dataframe=train_df, data_dir=args.data_dir, is_train=True)
+    train_dataset = ParkinsonDataset(dataframe=train_df, data_dir=args.data_dir, is_train=True,class_weights={"control": 0.3, "parkinson": 0.7})
     plot_group_distribution(train_dataset,
                             file_path = f"{args.save_results}/distributions/train_{fold_id+1}.png", 
                             title=f"Group Distribution Train Fold {fold_id+1}")
@@ -183,44 +183,44 @@ def main():
     os.makedirs(os.path.join(args.save_results,"loss"), exist_ok=True)
 
     # Train a model for each fold
-    # best_model_paths = []
-    # for fold_id in range(20,25):
-    #     # Load train and validation CSV files for the current fold
-    #     train_csv_path = os.path.join(args.folds_root_dir_train, f"train_df_fold_{fold_id + 1}.csv")
-    #     val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
+    best_model_paths = []
+    for fold_id in range(20,25):
+        # Load train and validation CSV files for the current fold
+        train_csv_path = os.path.join(args.folds_root_dir_train, f"train_df_fold_{fold_id + 1}.csv")
+        val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
 
-    #     train_df = read_csv_safe(train_csv_path)
-    #     val_df = read_csv_safe(val_csv_path)
+        train_df = read_csv_safe(train_csv_path)
+        val_df = read_csv_safe(val_csv_path)
 
-    #     # Train the model for the current fold
-    #     train_fold(fold_id, train_df, val_df, args, device)
+        # Train the model for the current fold
+        train_fold(fold_id, train_df, val_df, args, device)
     
 
-    # print("Training completed for all folds.")
+    print("Training completed for all folds.")
 
 
     # Initialize lists to collect all predicted and true labels across all folds
-    all_folds_predicted_labels = []
-    all_folds_doctor_labels = []
+    # all_folds_predicted_labels = []
+    # all_folds_doctor_labels = []
 
-    # Validate a model for each fold
-    for fold_id in range(args.num_folds):
-        # Load validation CSV file for the current fold
-        val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
-        val_df = read_csv_safe(val_csv_path)
+    # # Validate a model for each fold
+    # for fold_id in range(args.num_folds):
+    #     # Load validation CSV file for the current fold
+    #     val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
+    #     val_df = read_csv_safe(val_csv_path)
         
-        # Validate the model for the current fold
-        all_predicted_labels, all_doctor_labels = validate_fold(fold_id, val_df, args, device)
+    #     # Validate the model for the current fold
+    #     all_predicted_labels, all_doctor_labels = validate_fold(fold_id, val_df, args, device)
         
-        # Collect the predicted and true labels for this fold
-        all_folds_predicted_labels.extend(all_predicted_labels)
-        all_folds_doctor_labels.extend(all_doctor_labels)
+    #     # Collect the predicted and true labels for this fold
+    #     all_folds_predicted_labels.extend(all_predicted_labels)
+    #     all_folds_doctor_labels.extend(all_doctor_labels)
 
-    print("Validating completed for all folds.")
+    # print("Validating completed for all folds.")
 
-    # Plot a confusion matrix for all folds combined
-    target_names = ["control", "parkinson", "rejected"]  # Adjust based on your labels
-    plot_confusion_matrix(all_folds_doctor_labels, all_folds_predicted_labels, target_names,args.save_results)
+    # # Plot a confusion matrix for all folds combined
+    # target_names = ["control", "parkinson", "rejected"]  # Adjust based on your labels
+    # plot_confusion_matrix(all_folds_doctor_labels, all_folds_predicted_labels, target_names,args.save_results)
 
 if __name__ == "__main__":
     main()
