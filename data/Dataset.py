@@ -7,7 +7,7 @@ import numpy as np
 import random
 
 class ParkinsonDataset(Dataset):
-    def __init__(self, dataframe, data_dir, transform=None, is_train=True, oversample_option=1, k=None):
+    def __init__(self, dataframe, data_dir, transform=None, is_train=True, oversample_option=1, k=None, class_weights=None):
         """
         Args:
             dataframe (pd.DataFrame): DataFrame containing image file paths, doctor_label, and real_label.
@@ -16,6 +16,8 @@ class ParkinsonDataset(Dataset):
             is_train (bool): Whether the dataset is for training (default: True).
             oversample_option (int): 1 for equal and balanced sampling, 2 for weighted sampling.
             k (int, optional): Constant number to oversample to. If None, oversample to the max length within each pair.
+            class_weights (dict, optional): Manual weights for Control and Parkinson classes. 
+                                           Example: {"control": 0.3, "parkinson": 0.7}.
         """
         self.dataframe = dataframe
         self.data_dir = data_dir
@@ -23,6 +25,7 @@ class ParkinsonDataset(Dataset):
         self.is_train = is_train
         self.oversample_option = oversample_option
         self.k = k
+        self.class_weights = class_weights if class_weights is not None else {"control": 0.5, "parkinson": 0.5}  # Default weights
 
         # Define label mappings
         self.label_mapping = {"control": 0, "parkinson": 1, "unknown": 2}
@@ -101,13 +104,13 @@ class ParkinsonDataset(Dataset):
         # Oversample indices for each group
         oversampled_indices = {}
         for group_label in self.group_indices:
-            if group_label in [0, 1]:
+            if group_label in [0, 1]:  # Group 1 (Control) and Group 2 (Parkinson)
                 target_length = target_pair1
-            else:
+            else:  # Group 3 (Unknown_Control) and Group 4 (Unknown_Parkinson)
                 target_length = target_pair2
 
             indices = self.group_indices[group_label]
-            oversampled_indices[group_label] = self._oversample_group(indices, target_length)
+            oversampled_indices[group_label] = self._oversample_group(indices, target_length, group_label)
 
         # Combine all oversampled indices into a single list
         combined_indices = []
@@ -119,26 +122,37 @@ class ParkinsonDataset(Dataset):
 
         return combined_indices
 
-    def _oversample_group(self, indices, target_length):
+    def _oversample_group(self, indices, target_length, group_label):
         """
         Oversample a group's indices to the target length.
         """
         if self.oversample_option == 1:
-            # Equal and balanced sampling
-            return self._oversample_equal(indices, target_length)
+            # Equal and balanced sampling with weights for Group 1 and Group 2
+            return self._oversample_equal_with_weights(indices, target_length, group_label)
         elif self.oversample_option == 2:
             # Weighted sampling
             return self._oversample_weighted(indices, target_length)
         else:
             raise ValueError(f"Invalid oversample_option: {self.oversample_option}")
 
-    def _oversample_equal(self, indices, target_length):
+    def _oversample_equal_with_weights(self, indices, target_length, group_label):
         """
-        Oversample indices to the target length by repeating samples.
+        Oversample indices to the target length by repeating samples, considering weights for Group 1 and Group 2.
         """
         if len(indices) == 0:
             return []
-        return list(np.random.choice(indices, size=target_length, replace=True))
+
+        # Apply weights only to Group 1 (Control) and Group 2 (Parkinson)
+        if group_label in [0, 1]:  # Group 1 or Group 2
+            if group_label == 0:  # Group 1 (Control)
+                weight = self.class_weights.get("control", 1.0)
+            else:  # Group 2 (Parkinson)
+                weight = self.class_weights.get("parkinson", 1.0)
+            adjusted_target_length = int(target_length * weight)
+        else:  # Group 3 or Group 4 (Unknown classes)
+            adjusted_target_length = target_length  # No weighting
+
+        return list(np.random.choice(indices, size=adjusted_target_length, replace=True))
 
     def _oversample_weighted(self, indices, target_length):
         """
