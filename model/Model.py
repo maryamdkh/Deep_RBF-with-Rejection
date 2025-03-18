@@ -18,7 +18,7 @@ class DeepRBFNetwork(nn.Module):
         self.feature_dim = args.feature_dim
 
         # Define trainable parameters for each class
-        self.A = nn.Parameter(torch.randn(self.num_classes, self.feature_dim, self.feature_dim) * 0.001)  # A_k matrices
+        self.A = nn.Parameter(torch.randn(self.num_classes, self.feature_dim, self.feature_dim) * 0.0001)  # A_k matrices
         self.b = nn.Parameter(torch.full((self.num_classes, self.feature_dim), args.lambda_margin / 2))      # b_k vectors
 
     def forward(self, x):
