@@ -10,6 +10,7 @@ from model.Model import DeepRBFNetwork
 from trainer.utils import plot_confusion_matrix
 from model.utils import load_feature_extractor
 from loss.MLLoss import MLLoss
+from loss.SoftMLLoss import SoftMLLoss
 from trainer.Trainer import Trainer
 from data.Dataset import ParkinsonDataset
 from data.utils import plot_group_distribution
@@ -73,8 +74,8 @@ def train_fold(fold_id, train_df, val_df, args, device):
     feature_extractor.eval()  # Set to evaluation mode (no training)
 
     # Define model, loss, optimizer, and data loaders
-    model = DeepRBFNetwork(feature_extractor, args)
-    criterion = MLLoss(lambda_margin=args.lambda_margin)
+    model = DeepRBFNetwork(feature_extractor, args) 
+    criterion = MLLoss(lambda_margin=args.lambda_margin) if args.loss_type == "mlloss" else SoftMLLoss(lambda_margin=args.lambda_margin)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.num_epochs, eta_min=args.lr * 0.01)
 
@@ -172,6 +173,8 @@ def main():
                         help="Directory to the pretrained models.")
     parser.add_argument("--rejection_thresh", type=float, default=16,
                         help="Threshold used to reject the sample.")
+    parser.add_argument("--loss_type", type=str, default="mlloss",
+                        help="Type of the loss function to use for training the model.")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
