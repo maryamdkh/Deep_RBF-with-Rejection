@@ -10,6 +10,8 @@ class SoftMLLoss(nn.Module):
         super(SoftMLLoss, self).__init__()
         self.lambda_margin = lambda_margin
 
+
+
     def forward(self, distances, doctor_labels, real_labels):
         """
         Args:
@@ -34,7 +36,7 @@ class SoftMLLoss(nn.Module):
 
                 # Maximize distance to other classes (second term: log(1 + exp(lambda - d_j(x_i))))
                 for j in range(1, distances.size(1)):
-                    loss = loss + torch.log1p(torch.exp(self.lambda_margin - d[j]))
+                    loss = loss + torch.log1p(torch.exp(self.lambda_margin - d[j])+ 1e-8)
 
             elif doctor_label.item() == 1:  # Group 2
                 # Minimize distance to parkinson (first term: d_yi(x_i))
@@ -43,14 +45,14 @@ class SoftMLLoss(nn.Module):
                 # Maximize distance to other classes (second term: log(1 + exp(lambda - d_j(x_i))))
                 for j in range(distances.size(1)):
                     if j != 1:
-                        loss = loss +  torch.log1p(torch.exp(self.lambda_margin - d[j]))
+                        loss = loss +  torch.log1p(torch.exp(self.lambda_margin - d[j])+ 1e-8) #Add a Small Epsilon for Stability
 
             elif doctor_label.item() == 2:  # Rejection groups
                 if real_label.item() == 0:  # Group 3
                     # Maximize distance to parkinson (second term: log(1 + exp(lambda - d_j(x_i))))
-                    loss = loss + torch.log1p(torch.exp(self.lambda_margin - d[1]))
+                    loss = loss + torch.log1p(torch.exp(self.lambda_margin - d[1])+ 1e-8)
                 elif real_label.item() == 1:  # Group 4
                     # Maximize distance to control (second term: log(1 + exp(lambda - d_j(x_i))))
-                    loss = loss +torch.log1p(torch.exp(self.lambda_margin - d[0]))
+                    loss = loss +torch.log1p(torch.exp(self.lambda_margin - d[0])+ 1e-8)
 
         return loss / batch_size  # Average loss over the batch

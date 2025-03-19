@@ -187,7 +187,7 @@ def main():
 
     # Train a model for each fold
     best_model_paths = []
-    for fold_id in range(20,25):
+    for fold_id in range(5,15):
         # Load train and validation CSV files for the current fold
         train_csv_path = os.path.join(args.folds_root_dir_train, f"train_df_fold_{fold_id + 1}.csv")
         val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
