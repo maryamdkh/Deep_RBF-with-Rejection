@@ -103,12 +103,15 @@ class DeepRBFNetwork(nn.Module):
         # Compute O_i = exp(-d_i(x))
         O = torch.exp(-distances)  # Shape: (batch_size, num_classes)
 
+        # Convert lambda_eval to a tensor and move it to the same device as O
+        lambda_eval_tensor = torch.tensor(lambda_eval, dtype=torch.float32, device=O.device)
+
         # Compute the rejection threshold T
-        T = -torch.log((-1 + torch.sqrt(1 + 4 * torch.exp(torch.tensor(lambda_eval)))) / (2 * torch.exp(torch.tensor(lambda_eval))))
+        T = -torch.log((-1 + torch.sqrt(1 + 4 * torch.exp(lambda_eval_tensor))) / (2 * torch.exp(lambda_eval_tensor)))
 
         # Compute probabilities for each class
-        numerator = O * (1 + torch.exp(lambda_eval) * O)  # Shape: (batch_size, num_classes)
-        denominator = torch.prod(1 + torch.exp(lambda_eval) * O, dim=1, keepdim=True)  # Shape: (batch_size, 1)
+        numerator = O * (1 + torch.exp(lambda_eval_tensor) * O)  # Shape: (batch_size, num_classes)
+        denominator = torch.prod(1 + torch.exp(lambda_eval_tensor) * O, dim=1, keepdim=True)  # Shape: (batch_size, 1)
         p_classes = numerator / denominator  # Shape: (batch_size, num_classes)
 
         # Compute probability for the rejection class

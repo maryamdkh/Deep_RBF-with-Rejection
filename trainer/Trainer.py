@@ -198,14 +198,16 @@ class Trainer:
 
         # Plot losses after training
         self.plot_losses()
-
-    def predict(self, dataloader, threshold=1.0):
+        
+    def predict(self, dataloader, inference_method="min_distance", threshold=1.0, lambda_eval=500):
         """
         Perform inference on a given DataLoader and return predicted and actual labels.
 
         Args:
             dataloader (DataLoader): DataLoader for inference.
-            threshold (float): Threshold for rejection. If the minimum distance is greater than this, reject the sample.
+            inference_method (str): Inference method to use. Options: "min_distance" or "softml".
+            threshold (float): Threshold for rejection (used only for "min_distance" inference).
+            lambda_eval (float): Lambda parameter for evaluation (used only for "softml" inference).
 
         Returns:
             all_predicted_labels (list): List of predicted labels.
@@ -225,11 +227,17 @@ class Trainer:
                 images = images.to(self.device)
                 doctor_labels = doctor_labels.to(self.device)
 
-                # Predict labels
-                predicted_labels, is_rejected = self.model.inference(images, threshold=threshold)
-
-                # Handle rejected samples (assign label 2)
-                predicted_labels[is_rejected] = 2
+                # Predict labels based on the selected inference method
+                if inference_method == "min_distance":
+                    predicted_labels, is_rejected = self.model.inference(images, threshold=threshold)
+                    # Handle rejected samples (assign label 2)
+                    predicted_labels[is_rejected] = 2
+                elif inference_method == "softml":
+                    predicted_labels, is_rejected = self.model.inference_softml(images, lambda_eval=lambda_eval)
+                    # Handle rejected samples (assign label 2)
+                    predicted_labels[is_rejected] = 2
+                else:
+                    raise ValueError(f"Invalid inference_method: {inference_method}. Choose 'min_distance' or 'softml'.")
 
                 # Collect results
                 all_predicted_labels.extend(predicted_labels.cpu().numpy())
