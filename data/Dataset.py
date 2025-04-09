@@ -148,7 +148,7 @@ class ParkinsonDataset(Dataset):
                 weight = self.class_weights.get("control", 1.0)
             else:  # Group 2 (Parkinson)
                 weight = self.class_weights.get("parkinson", 1.0)
-            adjusted_target_length = int(target_length * weight)
+            adjusted_target_length =target_length #int(target_length * weight)
         else:  # Group 3 or Group 4 (Unknown classes)
             adjusted_target_length = target_length  # No weighting
 
