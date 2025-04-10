@@ -239,7 +239,7 @@ def main():
 
     val_df_data = {"id":all_folds_subject_ids, "doctor_label":all_folds_doctor_labels,"real_label":all_folds_real_labels,
                   "predicted_label":all_folds_predicted_labels,"distance":all_folds_distances}
-    pd.DataFrame(data =val_df_data).to_csv("valiadtion_results.df")
+    pd.DataFrame(data =val_df_data).to_csv("valiadtion_results.csv")
 
     # Plot a confusion matrix for all folds combined
     target_names = ["control", "parkinson", "rejected"]  # Adjust based on your labels
