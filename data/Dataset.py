@@ -58,9 +58,13 @@ class ParkinsonDataset(Dataset):
             doctor_label, real_label, group_label = self._get_labels_and_group(idx)
             self.group_indices[group_label].append(idx)
 
-        # Oversample indices
-        self.oversampled_indices = self._oversample_indices()
-
+         # Only oversample if this is training data
+        if self.is_train:
+            self.oversampled_indices = self._oversample_indices()
+        else:
+            # For validation/test, use original indices in order
+            self.oversampled_indices = list(range(len(self.dataframe)))
+            
     def _get_labels_and_group(self, idx):
         """
         Helper function to get labels and group label for a given index.

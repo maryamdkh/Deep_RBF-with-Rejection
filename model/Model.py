@@ -83,7 +83,7 @@ class DeepRBFNetwork(nn.Module):
         # Set predicted labels to -1 for rejected samples
         predicted_labels[is_rejected] = -1
 
-        return predicted_labels, is_rejected
+        return distances,predicted_labels, is_rejected
 
     def inference_softml(self, x, lambda_eval=500):
         """

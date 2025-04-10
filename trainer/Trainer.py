@@ -215,6 +215,7 @@ class Trainer:
         """
         self.model.eval()  # Set model to evaluation mode
         all_predicted_labels = []
+        all_distances = []
         all_doctor_labels = []
 
         with torch.no_grad():
@@ -229,9 +230,11 @@ class Trainer:
 
                 # Predict labels based on the selected inference method
                 if inference_method == "min_distance":
-                    predicted_labels, is_rejected = self.model.inference(images, threshold=threshold)
+                    distances,predicted_labels, is_rejected = self.model.inference(images, threshold=threshold)
                     # Handle rejected samples (assign label 2)
                     predicted_labels[is_rejected] = 2
+                    all_distances.append(distances)
+
                 elif inference_method == "softml":
                     predicted_labels, is_rejected = self.model.inference_softml(images, lambda_eval=lambda_eval)
                     # Handle rejected samples (assign label 2)
@@ -243,4 +246,4 @@ class Trainer:
                 all_predicted_labels.extend(predicted_labels.cpu().numpy())
                 all_doctor_labels.extend(doctor_labels.cpu().numpy())
 
-        return all_predicted_labels, all_doctor_labels
+        return all_distances,all_predicted_labels, all_doctor_labels
