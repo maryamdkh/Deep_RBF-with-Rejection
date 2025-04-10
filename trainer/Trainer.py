@@ -233,7 +233,7 @@ class Trainer:
                     distances,predicted_labels, is_rejected = self.model.inference(images, threshold=threshold)
                     # Handle rejected samples (assign label 2)
                     predicted_labels[is_rejected] = 2
-                    all_distances.append(distances)
+                    all_distances.append(distances.cpu().numpy())
 
                 elif inference_method == "softml":
                     predicted_labels, is_rejected = self.model.inference_softml(images, lambda_eval=lambda_eval)
