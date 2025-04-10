@@ -234,16 +234,11 @@ def main():
         all_folds_subject_ids.extend([item.split("/")[-1].split(".")[0] for item in val_df.loc[:,"path"].to_list()])
         all_folds_distances.extend(all_distances)
 
+
     print("Validating completed for all folds.")
 
-    print(len(all_folds_predicted_labels))
-    print(len(all_folds_doctor_labels))
-    print(len(all_folds_real_labels))
-    print(len(all_folds_subject_ids))
-    print(len(all_folds_distances))
-
     val_df_data = {"id":all_folds_subject_ids, "doctor_label":all_folds_doctor_labels,"real_label":all_folds_real_labels,
-                  "predicted_label":all_folds_predicted_labels,"distance":all_distances}
+                  "predicted_label":all_folds_predicted_labels,"distance":all_folds_distances}
     pd.DataFrame(data =val_df_data).to_csv("valiadtion_results.df")
 
     # Plot a confusion matrix for all folds combined
