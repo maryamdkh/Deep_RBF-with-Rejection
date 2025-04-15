@@ -35,9 +35,9 @@ def load_feature_extractor(device, data_path=None):
         nn.Flatten(),  # Flattens to [batch_size, 2048]
         nn.Linear(2048, 1024),  # First reduction: 2048 → 1024
         nn.ReLU(inplace=True),
-        nn.Linear(1024, 64),  # Second reduction: 1024 → 256
-        # nn.ReLU(inplace=True),
-        # nn.Linear(256, 64),  # Second reduction: 1024 → 256
+        nn.Linear(1024, 256),  # Second reduction: 1024 → 256
+        nn.ReLU(inplace=True),
+        nn.Linear(256, 64),  # Second reduction: 1024 → 256
 
     )
 
