@@ -52,7 +52,7 @@ class DeepRBFNetwork(nn.Module):
             transformed_features = torch.matmul(features, A_k.T) + b_k  # Shape: (batch_size, feature_dim)
 
             # Compute L1 norm (distance)
-            d_k = torch.norm(transformed_features, p=1, dim=1)  # Shape: (batch_size,)
+            d_k = torch.norm(transformed_features, p=2, dim=1)  # Shape: (batch_size,)
             distances.append(d_k)
 
         distances = torch.stack(distances, dim=1)  # Shape: (batch_size, num_classes)
