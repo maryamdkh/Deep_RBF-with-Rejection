@@ -155,6 +155,8 @@ def main():
                         help="Dimension of the feature vector output by the feature extractor")
     parser.add_argument("--lambda_margin", type=float, default=1.0,
                         help="Margin for the hinge loss (default: 1.0)")
+    parser.add_argument("--lambda_min", type=float, default=100,
+                        help="Minimum intra-distance (default: 100)")
     parser.add_argument("--lr", type=float, default=0.001,
                         help="Learning rate for the optimizer (default: 0.001)")
     parser.add_argument("--batch_size", type=int, default=32,
