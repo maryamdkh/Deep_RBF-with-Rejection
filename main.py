@@ -78,7 +78,7 @@ def train_fold(fold_id, train_df, val_df, args, device):
 
     # Define model, loss, optimizer, and data loaders
     model = DeepRBFNetwork(feature_extractor, args) 
-    criterion = MLLoss(lambda_margin=args.lambda_margin) if args.loss_type == "mlloss" else SoftMLLoss(lambda_margin=args.lambda_margin)
+    criterion = MLLoss(lambda_margin=args.lambda_margin,lambda_min=args.lambda_min) if args.loss_type == "mlloss" else SoftMLLoss(lambda_margin=args.lambda_margin)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.num_epochs, eta_min=args.lr * 0.01)
 
