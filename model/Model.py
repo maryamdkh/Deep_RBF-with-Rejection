@@ -94,7 +94,9 @@ class DeepRBFNetwork(nn.Module):
         # Determine if the sample should be rejected based on two conditions:
         # 1. Minimum distance is too large (far from all known classes)
         # 2. Confidence is too low (difference between top two classes is small)
-        is_rejected = (min_distances > rejection_threshold) | (confidence < confidence_threshold)
+        
+        # is_rejected = (min_distances > rejection_threshold) | (confidence < confidence_threshold)
+        is_rejected = (min_distances > rejection_threshold)
 
         # Set predicted labels to -1 for rejected samples
         predicted_labels[is_rejected] = -1

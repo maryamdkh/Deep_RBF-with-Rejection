@@ -230,7 +230,7 @@ class Trainer:
 
                 # Predict labels based on the selected inference method
                 if inference_method == "min_distance":
-                    distances,predicted_labels, is_rejected = self.model.inference(images, threshold=threshold,confidence_threshold=confidence_threshold)
+                    distances,predicted_labels, is_rejected = self.model.inference(images, rejection_threshold=threshold,confidence_threshold=confidence_threshold)
                     # Handle rejected samples (assign label 2)
                     predicted_labels[is_rejected] = 2
                     all_distances.append(distances.cpu().numpy())
