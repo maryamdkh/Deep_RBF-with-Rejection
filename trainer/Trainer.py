@@ -199,7 +199,7 @@ class Trainer:
         # Plot losses after training
         self.plot_losses()
         
-    def predict(self, dataloader, inference_method="min_distance", threshold=1.0, lambda_eval=500):
+    def predict(self, dataloader, inference_method="min_distance", threshold=1.0, lambda_eval=500,confidence_threshold=50):
         """
         Perform inference on a given DataLoader and return predicted and actual labels.
 
@@ -230,7 +230,7 @@ class Trainer:
 
                 # Predict labels based on the selected inference method
                 if inference_method == "min_distance":
-                    distances,predicted_labels, is_rejected = self.model.inference(images, threshold=threshold)
+                    distances,predicted_labels, is_rejected = self.model.inference(images, threshold=threshold,confidence_threshold=confidence_threshold)
                     # Handle rejected samples (assign label 2)
                     predicted_labels[is_rejected] = 2
                     all_distances.append(distances.cpu().numpy())

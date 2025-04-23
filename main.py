@@ -51,7 +51,7 @@ def validate_fold(fold_id, df, args, device):
     inference_method = "min_distance" if args.loss_type == "mlloss" else "softml"
     # Perform inference on training data and generate classification report
     return trainer.predict(dataloader=data_loader, threshold=args.rejection_thresh,\
-                    inference_method=inference_method, lambda_eval=args.lambda_eval)
+                    inference_method=inference_method, lambda_eval=args.lambda_eval,confidence_threshold=args.confidence_threshold)
 
 
 
@@ -157,6 +157,8 @@ def main():
                         help="Margin for the hinge loss (default: 1.0)")
     parser.add_argument("--lambda_min", type=float, default=100,
                         help="Minimum intra-distance (default: 100)")
+    parser.add_argument("--confidence_threshold", type=float, default=50,
+                        help="The minimum distance difference between classes, used during inference.")
     parser.add_argument("--distance_metric", type=str, default='l2',
                         help="The distance metric used to calculate the distance in loss.")
     parser.add_argument("--lr", type=float, default=0.001,
