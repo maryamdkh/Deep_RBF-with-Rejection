@@ -157,6 +157,8 @@ def main():
                         help="Margin for the hinge loss (default: 1.0)")
     parser.add_argument("--lambda_min", type=float, default=100,
                         help="Minimum intra-distance (default: 100)")
+    parser.add_argument("--distance_metric", type=str, default='l2',
+                        help="The distance metric used to calculate the distance in loss.")
     parser.add_argument("--lr", type=float, default=0.001,
                         help="Learning rate for the optimizer (default: 0.001)")
     parser.add_argument("--batch_size", type=int, default=32,
@@ -195,58 +197,60 @@ def main():
     os.makedirs(os.path.join(args.save_results,"loss"), exist_ok=True)
 
     # Train a model for each fold
-    best_model_paths = []
-    for fold_id in range(10):
-        # Load train and validation CSV files for the current fold
-        train_csv_path = os.path.join(args.folds_root_dir_train, f"train_df_fold_{fold_id + 1}.csv")
-        val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
+    # best_model_paths = []
+    # for fold_id in range(10):
+    #     # Load train and validation CSV files for the current fold
+    #     train_csv_path = os.path.join(args.folds_root_dir_train, f"train_df_fold_{fold_id + 1}.csv")
+    #     val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
 
-        train_df = read_csv_safe(train_csv_path)
-        val_df = read_csv_safe(val_csv_path)
+    #     train_df = read_csv_safe(train_csv_path)
+    #     val_df = read_csv_safe(val_csv_path)
 
-        # Train the model for the current fold
-        train_fold(fold_id, train_df, val_df, args, device)
+    #     # Train the model for the current fold
+    #     train_fold(fold_id, train_df, val_df, args, device)
     
 
-    print("Training completed for all folds.")
+    # print("Training completed for all folds.")
 
 
     # Initialize lists to collect all predicted and true labels across all folds
-    # all_folds_predicted_labels = []
-    # all_folds_doctor_labels = []    
-    # all_folds_real_labels = []    
-    # all_folds_subject_ids = []    
-    # all_folds_distances = []
+    all_folds_predicted_labels = []
+    all_folds_doctor_labels = []    
+    all_folds_real_labels = []    
+    all_folds_subject_ids = []    
+    all_folds_distances = []
 
-    # # Validate a model for each fold
-    # for fold_id in range(args.num_folds):
-    #     # Load validation CSV file for the current fold
-    #     val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
-    #     val_df = read_csv_safe(val_csv_path)
-    #     if not len(val_df):
-    #       continue
+    # Validate a model for each fold
+    for fold_id in range(args.num_folds):
+        # Load validation CSV file for the current fold
+        val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
+        val_df = read_csv_safe(val_csv_path)
+        if not len(val_df):
+          continue
         
-    #     # Validate the model for the current fold
-    #     all_distances,all_predicted_labels, all_doctor_labels = validate_fold(fold_id, val_df, args, device)
+        # Validate the model for the current fold
+        all_distances,all_predicted_labels, all_doctor_labels = validate_fold(fold_id, val_df, args, device)
         
-    #     # Collect the predicted and true labels for this fold
-    #     all_folds_predicted_labels.extend(all_predicted_labels)
-    #     all_folds_doctor_labels.extend(all_doctor_labels)
-    #     all_folds_real_labels.extend(val_df.loc[:,"real_labels"].to_list() )
-    #     all_folds_subject_ids.extend([item.split("/")[-1].split(".")[0] for item in val_df.loc[:,"path"].to_list()])
-    #     all_folds_distances.extend(all_distances)
+        # Collect the predicted and true labels for this fold
+        all_folds_predicted_labels.extend(all_predicted_labels)
+        all_folds_doctor_labels.extend(all_doctor_labels)
+        all_folds_real_labels.extend(val_df.loc[:,"real_labels"].to_list() )
+        all_folds_subject_ids.extend([item.split("/")[-1].split(".")[0] for item in val_df.loc[:,"path"].to_list()])
+        all_folds_distances.extend(all_distances)
 
 
-    # print("Validating completed for all folds.")
+    print("Validating completed for all folds.")
 
-    # val_df_data = {"id":all_folds_subject_ids, "doctor_label":all_folds_doctor_labels,"real_label":all_folds_real_labels,
-    #               "predicted_label":all_folds_predicted_labels,"distance":all_folds_distances}
-    # pd.DataFrame(data =val_df_data).to_csv("valiadtion_results.csv")
+    val_df_data = {"id":all_folds_subject_ids, "doctor_label":all_folds_doctor_labels,"real_label":all_folds_real_labels,
+                  "predicted_label":all_folds_predicted_labels,"distance":all_folds_distances}
+    pd.DataFrame(data =val_df_data).to_csv("valiadtion_results.csv")
 
-    # # Plot a confusion matrix for all folds combined
-    # target_names = ["control", "parkinson", "rejected"]  # Adjust based on your labels
-    # plot_confusion_matrix(all_folds_doctor_labels, all_folds_predicted_labels, target_names,args.save_results)
-
+    # Plot a confusion matrix for all folds combined
+    target_names = ["control", "parkinson", "rejected"]  # Adjust based on your labels
+    plot_confusion_matrix(all_folds_doctor_labels, all_folds_predicted_labels, target_names,args.save_results)
+    args_dict = vars(args)
+    args_df = pd.DataFrame.from_dict(args_dict, orient='index', columns=['Value'])
+    args_df.to_csv(os.path.join(args.save_results, "config_arguments.csv"))
 
 if __name__ == "__main__":
     main()

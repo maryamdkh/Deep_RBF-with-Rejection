@@ -12,6 +12,7 @@ class DeepRBFNetwork(nn.Module):
         self.feature_extractor = feature_extractor
         self.num_classes = args.num_classes
         self.feature_dim = args.feature_dim
+        self.meteric_norm = 2 if args.distance_metric == 'l2' else 1
 
         # Define trainable parameters for each class
         self.A = nn.Parameter(torch.randn(self.num_classes, self.feature_dim, self.feature_dim) * 0.0001)  # A_k matrices
@@ -51,24 +52,28 @@ class DeepRBFNetwork(nn.Module):
             # Compute (A_k^T * features^T)^T + b_k
             transformed_features = torch.matmul(features, A_k.T) + b_k  # Shape: (batch_size, feature_dim)
 
-            # Compute L1 norm (distance)
-            d_k = torch.norm(transformed_features, p=2, dim=1)  # Shape: (batch_size,)
+            d_k = torch.norm(transformed_features, p=self.meteric_norm, dim=1)  # Shape: (batch_size,)
             distances.append(d_k)
 
         distances = torch.stack(distances, dim=1)  # Shape: (batch_size, num_classes)
 
         return distances
 
-    def inference(self, x, threshold=1.0):
+    def inference(self, x, rejection_threshold=1.0, confidence_threshold=0.5):
         """
-        Perform inference for a batch of samples using the minimum distance approach.
+        Perform inference for a batch of samples using the minimum distance approach with rejection rules.
 
         Args:
             x (torch.Tensor): Input tensor of shape (batch_size, ...).
-            threshold (float): Threshold for rejection. If the minimum distance is greater than this, reject the sample.
+            rejection_threshold (float): Threshold for rejection based on distance. 
+                If the minimum distance is greater than this, reject the sample.
+            confidence_threshold (float): Threshold for rejection based on confidence.
+                If the difference between distances to the two closest classes is less than this,
+                reject the sample even if the minimum distance is below rejection_threshold.
 
         Returns:
-            predicted_labels (torch.Tensor): Predicted labels for each sample. Shape: (batch_size,).
+            distances (torch.Tensor): Distances to all class centers. Shape: (batch_size, num_classes).
+            predicted_labels (torch.Tensor): Predicted labels for each sample (-1 for unknown). Shape: (batch_size,).
             is_rejected (torch.Tensor): Boolean tensor indicating whether each sample is rejected. Shape: (batch_size,).
         """
         # Compute distances for all classes
@@ -77,13 +82,24 @@ class DeepRBFNetwork(nn.Module):
         # Find the minimum distance and corresponding class for each sample
         min_distances, predicted_labels = torch.min(distances, dim=1)  # Shapes: (batch_size,), (batch_size,)
 
-        # Determine if the sample should be rejected
-        is_rejected = min_distances > threshold  # Shape: (batch_size,)
+        # For binary case, compute the difference between distances to the two classes
+        if distances.shape[1] == 2:
+            # Absolute difference between distances to the two classes
+            confidence = torch.abs(distances[:, 0] - distances[:, 1])
+        else:
+            # For multi-class, get difference between top two closest classes
+            sorted_distances, _ = torch.sort(distances, dim=1)
+            confidence = sorted_distances[:, 1] - sorted_distances[:, 0]
+
+        # Determine if the sample should be rejected based on two conditions:
+        # 1. Minimum distance is too large (far from all known classes)
+        # 2. Confidence is too low (difference between top two classes is small)
+        is_rejected = (min_distances > rejection_threshold) | (confidence < confidence_threshold)
 
         # Set predicted labels to -1 for rejected samples
         predicted_labels[is_rejected] = -1
 
-        return distances,predicted_labels, is_rejected
+        return distances, predicted_labels, is_rejected
 
     def inference_softml(self, x, lambda_eval=500):
         """
