@@ -38,16 +38,16 @@ class MLLoss(nn.Module):
 
 
             if doctor_label.item() == 0:  # Group 1
-                # loss = loss + d[0]  
-                loss = loss + torch.nn.functional.softplus(d[0]-self.lambda_min)# Minimize distance to control
+                loss = loss + d[0]  
+                # loss = loss + torch.nn.functional.softplus(d[0]-self.lambda_min)# Minimize distance to control
 
                 for j in range(1, distances.size(1)):  # Maximize distance to other classes
                     # loss = loss + torch.max(torch.tensor(0.0, device=distances.device), self.lambda_margin - d[j])
                     loss = loss + torch.nn.functional.softplus(self.lambda_margin - d[j])
                     
             elif doctor_label.item()  == 1:  # Group 2
-                # loss = loss + d[1]  
-                loss = loss + torch.nn.functional.softplus(d[1]-self.lambda_min)# Minimize distance to parkinson
+                loss = loss + d[1]  
+                # loss = loss + torch.nn.functional.softplus(d[1]-self.lambda_min)# Minimize distance to parkinson
 
                 for j in range(distances.size(1)):  # Maximize distance to other classes
                     if j != 1:
