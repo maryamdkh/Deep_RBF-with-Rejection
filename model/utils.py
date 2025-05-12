@@ -4,6 +4,8 @@ import torch.nn as nn
 import random
 import numpy as np
 
+from .Model import DeepRBFNetwork
+
 def set_seed(seed=42):
     random.seed(seed)
     np.random.seed(seed)
@@ -41,3 +43,24 @@ def load_feature_extractor(device, data_path=None):
   
 
     return model
+
+def load_all_models(model_paths, feature_extractor, args_template, device):
+    """
+    Load all trained models from disk.
+    
+    Args:
+        model_paths (list): List of paths to saved model state_dicts
+        feature_extractor (nn.Module): Backbone CNN
+        args_template: Template args object with model parameters
+        device: Device to load models onto
+        
+    Returns:
+        list: List of loaded and initialized models
+    """
+    models = []
+    for path in model_paths:
+        model = DeepRBFNetwork(feature_extractor, args_template)
+        model.load_state_dict(torch.load(path, map_location=device))
+        model.to(device)
+        models.append(model)
+    return models

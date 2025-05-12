@@ -6,6 +6,65 @@ import torchvision.transforms as transforms
 import numpy as np
 import random
 
+class PaHaWDataset(Dataset):
+    def __init__(self, df, image_root_dir=None, transform=None, has_labels=True):
+        """
+        Args:
+            df (pd.DataFrame): DataFrame containing at least:
+                - 'image_path': relative or absolute paths to images
+                - (optional) 'label': corresponding labels if has_labels=True
+            image_root_dir (string, optional): Root directory to prepend to image paths.
+                                              If None, paths are treated as absolute.
+            transform (callable, optional): Optional transform to be applied on a sample.
+            has_labels (bool): Whether the dataset contains labels (for training/validation)
+                               or not (for inference).
+        """
+        self.df = df.copy()
+        self.image_root_dir = image_root_dir
+        self.transform = transform if transform else transforms.Compose([
+                                                            transforms.Resize((128, 128)),
+                                                            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize
+                                                        ])
+        self.has_labels = has_labels
+        
+        # Default transform if none provided
+        if self.transform is None:
+            self.transform = transforms.Compose([
+                transforms.Resize((224, 224)),  # Adjust size based on your feature extractor
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],  # Standard ImageNet normalization
+                                     std=[0.229, 0.224, 0.225])
+            ])
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        # Get image path from DataFrame
+        img_path = self.df.iloc[idx]['image_path']
+        
+        # Prepend root directory if specified
+        if self.image_root_dir is not None:
+            img_path = os.path.join(self.image_root_dir, img_path)
+        
+        # Load and transform image
+        image = Image.open(img_path).convert('RGB')  # Ensure RGB format
+        if self.transform:
+            image = self.transform(image)
+        
+        # Return different items depending on whether we have labels
+        if self.has_labels:
+            label = self.df.iloc[idx]['label']
+            return image, label, img_path  # Return image, label, and path
+        else:
+            return image, img_path  # Return image and path for inference
+
+    def get_labels(self):
+        """Return all labels if available, otherwise None"""
+        if self.has_labels:
+            return self.df['label'].values
+        return None
+    
 class ParkinsonDataset(Dataset):
     def __init__(self, dataframe, data_dir, transform=None, is_train=True, oversample_option=1, k=None, class_weights=None):
         """
