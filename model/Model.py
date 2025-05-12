@@ -5,18 +5,44 @@ class DeepRBFNetwork(nn.Module):
     def __init__(self, feature_extractor, args):
         """
         Args:
-            feature_extractor (nn.Module): Feature extractor network.
-            args: Arguments containing num_classes, feature_dim, and lambda_margin.
+            feature_extractor (nn.Module): Backbone CNN with convolutional layers.
+            args: Arguments containing num_classes, feature_dim, lambda_margin, distance_metric.
         """
         super(DeepRBFNetwork, self).__init__()
+
+        # Freeze feature extractor
+        for param in feature_extractor.parameters():
+            param.requires_grad = False
         self.feature_extractor = feature_extractor
+
+        # Post-feature extraction processing
+        self.post_extractor = nn.Sequential(
+            nn.AdaptiveAvgPool2d((1, 1)),  # Global pooling
+            nn.Flatten(),  # [B, 2048]
+            nn.Linear(2048, 1024),
+            nn.ReLU(inplace=True),
+            nn.Linear(1024, args.feature_dim),  # Final feature_dim (e.g., 512)
+        )
+
+        # Initialize the new layers with a fixed seed
+        self._initialize_weights(seed=42)
+
         self.num_classes = args.num_classes
         self.feature_dim = args.feature_dim
         self.meteric_norm = 2 if args.distance_metric == 'l2' else 1
 
-        # Define trainable parameters for each class
-        self.A = nn.Parameter(torch.randn(self.num_classes, self.feature_dim, self.feature_dim) * 0.0001)  # A_k matrices
-        self.b = nn.Parameter(torch.full((self.num_classes, self.feature_dim), args.lambda_margin / 2))    # max +min/2  # b_k vectors
+        # Learnable RBF parameters (randomly initialized)
+        self.A = nn.Parameter(torch.randn(self.num_classes, self.feature_dim, self.feature_dim) * 0.0001)
+        self.b = nn.Parameter(torch.full((self.num_classes, self.feature_dim), args.lambda_margin / 2))
+
+    def _initialize_weights(self, seed=42):
+        torch.manual_seed(seed)
+        for m in self.post_extractor:
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
 
     def forward(self, x):
         """
@@ -28,36 +54,30 @@ class DeepRBFNetwork(nn.Module):
         Returns:
             distances (torch.Tensor): Distances for each class. Shape: (batch_size, num_classes).
         """
-        # Extract features
-        features = self.feature_extractor(x)  # Shape: (batch_size, feature_dim)
-        features = torch.squeeze(features)  # Shape: (batch_size, feature_dim)
+        # Extract frozen features
+        with torch.no_grad():
+            x = self.feature_extractor(x)
+
+        # Process features to desired dimension
+        features = self.post_extractor(x)  # Shape: [batch_size, feature_dim]
 
         # Ensure the batch dimension is preserved
         if features.dim() == 1:
             features = features.unsqueeze(0)  # Add batch dimension if missing
 
-        # Ensure features has the correct shape (batch_size, feature_dim)
-        if features.shape[1] != self.feature_dim:
-            raise ValueError(
-                f"Expected features to have shape (batch_size, {self.feature_dim}), "
-                f"but got {features.shape}"
-            )
-
         # Compute distances for each class
         distances = []
         for k in range(self.num_classes):
-            A_k = self.A[k]  # Shape: (feature_dim, feature_dim)
-            b_k = self.b[k]  # Shape: (feature_dim,)
-
-            # Compute (A_k^T * features^T)^T + b_k
-            transformed_features = torch.matmul(features, A_k.T) + b_k  # Shape: (batch_size, feature_dim)
-
-            d_k = torch.norm(transformed_features, p=self.meteric_norm, dim=1)  # Shape: (batch_size,)
+            A_k = self.A[k]
+            b_k = self.b[k]
+            transformed = torch.matmul(features, A_k.T) + b_k
+            d_k = torch.norm(transformed, p=self.meteric_norm, dim=1)
             distances.append(d_k)
 
-        distances = torch.stack(distances, dim=1)  # Shape: (batch_size, num_classes)
-
+        distances = torch.stack(distances, dim=1)  # [batch_size, num_classes]
         return distances
+    
+
 
     def inference(self, x, rejection_threshold=1.0, confidence_threshold=0.5):
         """

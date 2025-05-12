@@ -57,7 +57,7 @@ class MLLoss(nn.Module):
 
             elif doctor_label.item()  == 2:  # Rejection groups
                 if real_label.item()  == 0:  # Group 3
-                    # loss = loss + torch.max(torch.tensor(0.0, device=distances.device), self.lambda_margin - d[1])  # Maximize distance to parkinson
+                    # loss = loss + torch.max(torch.tensor(0.0, device=distances.device), self.ladmbda_margin - d[1])  # Maximize distance to parkinson
                     loss = loss + torch.nn.functional.softplus(self.lambda_margin - d[1])
 
                 elif real_label.item()  == 1:  # Group 4

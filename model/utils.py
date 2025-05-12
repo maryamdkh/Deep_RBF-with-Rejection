@@ -1,6 +1,17 @@
 import os
 import torch
 import torch.nn as nn
+import random
+import numpy as np
+
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 def load_feature_extractor(device, data_path=None):
     """
@@ -27,21 +38,6 @@ def load_feature_extractor(device, data_path=None):
 
     # Remove the last two layers (avgpool and fc)
     model = torch.nn.Sequential(*list(model.children())[:-1])
-
-    # Add AdaptiveAvgPool2d + Flatten + New FC layers
-    model = nn.Sequential(
-        model,  # Original layers (before avgpool and fc)
-        nn.AdaptiveAvgPool2d((1, 1)),  # Reduces spatial dimensions to 1x1
-        nn.Flatten(),  # Flattens to [batch_size, 2048]
-        nn.Linear(2048, 1024),  # First reduction: 2048 → 1024
-        nn.ReLU(inplace=True),
-        nn.Linear(1024, 512),  # Second reduction: 1024 → 256
-        # nn.ReLU(inplace=True),
-        # nn.Linear(512, 256),  # Second reduction: 1024 → 256
-
-    )
-
-    # Move the model to the specified device
-    model = model.to(device)
+  
 
     return model
