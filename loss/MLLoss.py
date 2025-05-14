@@ -61,7 +61,7 @@ class MLLoss(nn.Module):
                     loss = loss + torch.nn.functional.softplus(self.lambda_margin - d[1])
 
                 elif real_label.item()  == 1:  # Group 4
-                    loss = loss + torch.max(torch.tensor(0.0, device=distances.device), self.lambda_margin - d[0])  # Maximize distance to control
+                    # loss = loss + torch.max(torch.tensor(0.0, device=distances.device), self.lambda_margin - d[0])  # Maximize distance to control
                     loss = loss + torch.nn.functional.softplus(self.lambda_margin - d[0])
 
         # print(loss)
