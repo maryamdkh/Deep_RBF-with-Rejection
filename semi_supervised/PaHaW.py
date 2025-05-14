@@ -40,9 +40,8 @@ def label_pahaw_images(models, data_loader, device, rejection_threshold=1.0,
                 distances = distances.cpu().numpy()
                 
                 for i, path in enumerate(paths):
-                    if pred_labels[i] != -1:  # Only count non-rejected votes
-                        batch_votes[path]['labels'].append(pred_labels[i])
-                        batch_votes[path]['distances'].append(distances[i])
+                    batch_votes[path]['labels'].append(pred_labels[i])
+                    batch_votes[path]['distances'].append(distances[i])
             
             # Determine final label for each image in this batch
             for path, vote_data in batch_votes.items():
