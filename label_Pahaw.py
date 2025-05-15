@@ -25,6 +25,8 @@ def main():
     parser.add_argument('--num_classes', type=int, required=True, help='Number of classes in the model')
     parser.add_argument('--feature_dim', type=int, default=64, help='Dimension of feature space')
     parser.add_argument('--no_cuda', action='store_true', help='Disable CUDA even if available')
+    parser.add_argument("--distance_metric", type=str, default='l2',
+                        help="The distance metric used to calculate the distance in loss.")
     
     args = parser.parse_args()
     
@@ -50,6 +52,7 @@ def main():
     args_template = ArgsTemplate()
     args_template.num_classes = args.num_classes
     args_template.feature_dim = args.feature_dim
+    args_template.distance_metric = args.distance_metric
     
     # Load all models
     models = load_all_models(args.model_paths, feature_extractor, args_template, device)
