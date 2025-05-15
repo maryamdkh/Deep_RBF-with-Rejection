@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class DeepRBFNetwork(nn.Module):
-    def __init__(self, feature_extractor, args):
+    def __init__(self, args,feature_extractor=None):
         """
         Args:
             feature_extractor (nn.Module): Backbone CNN with convolutional layers.
@@ -10,16 +10,17 @@ class DeepRBFNetwork(nn.Module):
         """
         super(DeepRBFNetwork, self).__init__()
 
-        # Freeze feature extractor
-        for param in feature_extractor.parameters():
-            param.requires_grad = False
-        self.feature_extractor = feature_extractor
+        if feature_extractor:
+            # Freeze feature extractor
+            for param in feature_extractor.parameters():
+                param.requires_grad = False
+            self.feature_extractor = feature_extractor
 
         # Post-feature extraction processing
         self.post_extractor = nn.Sequential(
             nn.AdaptiveAvgPool2d((1, 1)),  # Global pooling
             nn.Flatten(),  # [B, 2048]
-            nn.Linear(2048, 1024),
+            nn.Linear(args.input_dim, 1024),
             nn.ReLU(inplace=True),
             nn.Linear(1024, args.feature_dim),  # Final feature_dim (e.g., 512)
         )
@@ -54,12 +55,15 @@ class DeepRBFNetwork(nn.Module):
         Returns:
             distances (torch.Tensor): Distances for each class. Shape: (batch_size, num_classes).
         """
-        # Extract frozen features
-        with torch.no_grad():
-            x = self.feature_extractor(x)
+        if self.feature_extractor:
+            # Extract frozen features
+            with torch.no_grad():
+                x = self.feature_extractor(x)
 
-        # Process features to desired dimension
-        features = self.post_extractor(x)  # Shape: [batch_size, feature_dim]
+            # Process features to desired dimension
+            features = self.post_extractor(x)  # Shape: [batch_size, feature_dim]
+        else:
+            features = x
 
         # Ensure the batch dimension is preserved
         if features.dim() == 1:
@@ -115,8 +119,8 @@ class DeepRBFNetwork(nn.Module):
         # 1. Minimum distance is too large (far from all known classes)
         # 2. Confidence is too low (difference between top two classes is small)
         
-        # is_rejected = (min_distances > rejection_threshold) | (confidence < confidence_threshold)
-        is_rejected = (min_distances > rejection_threshold)
+        is_rejected = (min_distances > rejection_threshold) | (confidence < confidence_threshold)
+        # is_rejected = (min_distances > rejection_threshold)
 
         # Set predicted labels to -1 for rejected samples
         predicted_labels[is_rejected] = -1

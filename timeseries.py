@@ -68,16 +68,8 @@ def train_fold(fold_id, train_df, val_df, args, device):
     """
     print(f"Training fold {fold_id + 1}/{args.num_folds}")
 
-    # Load the feature extractor model
-    if args.feature_extractor:
-      feature_extractor = load_feature_extractor(data_path = os.path.join(args.feature_extractor, f"best_model_fold_{fold_id+1}.pth"), device = device)
-    else:
-      feature_extractor = load_feature_extractor(device=device)
-
-    feature_extractor.eval()  # Set to evaluation mode (no training)
-
     # Define model, loss, optimizer, and data loaders
-    model = DeepRBFNetwork(feature_extractor=feature_extractor, args=args) 
+    model = DeepRBFNetwork(args=args) 
     criterion = MLLoss(lambda_margin=args.lambda_margin,lambda_min=args.lambda_min) if args.loss_type == "mlloss" else SoftMLLoss(lambda_margin=args.lambda_margin)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = CosineAnnealingLR(optimizer, T_max=args.num_epochs, eta_min=args.lr * 0.01)
@@ -147,8 +139,6 @@ def read_csv_safe(file_path):
 def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Train Deep-RBF Network with Rejection")
-    parser.add_argument("--feature_extractor", type=str, required=False, default=None,
-                        help="Root to the PyTorch model dir to use as the feature extractor")
     parser.add_argument("--num_classes", type=int, required=True,
                         help="Number of classes in the dataset")
     parser.add_argument("--feature_dim", type=int, required=True,
@@ -189,7 +179,6 @@ def main():
                         help="Type of the loss function to use for training the model.")
     parser.add_argument("--lambda_eval", type=float, default=100, required=False,
                         help="Lambda parameter for inference when using soft mlloss.")
-    
     parser.add_argument("--random_state", type=int, default=42, required=False,
                         help="Random state.")
                         
@@ -205,7 +194,6 @@ def main():
     os.makedirs(os.path.join(args.save_results,"loss"), exist_ok=True)
 
     # Train a model for each fold
-    best_model_paths = []
     for fold_id in range(15):
         # Load train and validation CSV files for the current fold
         train_csv_path = os.path.join(args.folds_root_dir_train, f"train_df_fold_{fold_id + 1}.csv")
