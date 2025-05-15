@@ -5,6 +5,10 @@ from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 import numpy as np
 import random
+import json
+import torch
+import pickle
+from sklearn.preprocessing import StandardScaler
 
 class PaHaWDataset(Dataset):
     def __init__(self, df, image_root_dir=None, transform=None, has_labels=True):
@@ -64,7 +68,7 @@ class PaHaWDataset(Dataset):
     
 
 class ParkinsonTSDataset(Dataset):
-    def __init__(self, dataframe, data_dir, transform=None, is_train=True, oversample_option=1, k=None, class_weights=None):
+    def __init__(self, dataframe, data_dir, transform=None, is_train=True, oversample_option=1, k=None, class_weights=None,line_threshold=10):
         """
         Args:
             dataframe (pd.DataFrame): DataFrame containing image file paths, doctor_label, and real_label.
@@ -83,9 +87,14 @@ class ParkinsonTSDataset(Dataset):
         self.oversample_option = oversample_option
         self.k = k
         self.class_weights = class_weights if class_weights is not None else {"control": 0.5, "parkinson": 0.5}  # Default weights
+        self.line_threshold = line_threshold
+        self.scaler = StandardScaler()
 
         # Define label mappings
         self.label_mapping = {"control": 0, "parkinson": 1, "unknown": 2}
+
+        # Load and preprocess all features
+        self.features = self._load_and_scale_features()
 
         # Group indices by group_label
         self.group_indices = {0: [], 1: [], 2: [], 3: []}
@@ -100,6 +109,55 @@ class ParkinsonTSDataset(Dataset):
             # For validation/test, use original indices in order
             self.oversampled_indices = list(range(len(self.dataframe)))
             
+    def _load_and_scale_features(self):
+        """Load all features from .pkl files and fit scaler if training"""
+        features = []
+        feature_shapes = []
+        
+        # First pass: Load all features and collect shapes
+        for idx in range(len(self.dataframe)):
+            feature_path = os.path.join(self.data_dir, self.dataframe.iloc[idx]['extracted_feature'])
+            with open(feature_path, 'rb') as f:
+                feature_data = pickle.load(f)
+                features.append(feature_data['features'])
+                feature_shapes.append(feature_data['original_shape'])
+
+        # Convert features to numpy array for scaling
+        if isinstance(features[0], dict):
+            # For dictionary-type features (handcrafted, catch22)
+            feature_df = pd.DataFrame(features)
+            feature_array = feature_df.values
+        else:
+            # For array-type features (rocket, raw)
+            feature_array = np.array(features)
+
+        # Fit scaler on training data only
+        if self.is_train:
+            self.scaler.fit(feature_array)
+
+        # Scale features
+        scaled_features = self.scaler.transform(feature_array)
+
+        # Convert back to original format
+        processed_features = []
+        for i in range(len(scaled_features)):
+            if isinstance(features[i], dict):
+                # Reconstruct dictionary with scaled values
+                scaled_dict = {}
+                for j, key in enumerate(features[i].keys()):
+                    scaled_dict[key] = scaled_features[i][j]
+                processed_features.append({
+                    'features': scaled_dict,
+                    'original_shape': feature_shapes[i]
+                })
+            else:
+                processed_features.append({
+                    'features': scaled_features[i],
+                    'original_shape': feature_shapes[i]
+                })
+
+        return processed_features
+    
     def _get_labels_and_group(self, idx):
         """
         Helper function to get labels and group label for a given index.
@@ -206,24 +264,21 @@ class ParkinsonTSDataset(Dataset):
         return len(self.oversampled_indices)
 
     def __getitem__(self, idx):
-        # Get the oversampled index
+        """Get item with scaled features"""
         oversampled_idx = self.oversampled_indices[idx]
+        feature_data = self.features[oversampled_idx]
+        
+        # Convert features to tensor
+        if isinstance(feature_data['features'], dict):
+            # For dictionary features, convert to flat tensor
+            features_tensor = torch.tensor(list(feature_data['features'].values()), dtype=torch.float32)
+        else:
+            # For array features
+            features_tensor = torch.tensor(feature_data['features'], dtype=torch.float32)
 
-        # Get image path and labels from the DataFrame
-        ts_path = os.path.join(self.data_dir, self.dataframe.loc[oversampled_idx, 'path'])  # Assuming the first column is the timeseries path
         doctor_label, real_label, group_label = self._get_labels_and_group(oversampled_idx)
 
-        # Load the image
-        image = Image.open(img_path).convert('RGB')  # Ensure image is in RGB format
-
-        # Apply transformations
-        if self.transform:
-            image = self.transform(image)
-        else:
-            image = self.augmentation(image)
-
-        # Return image, doctor_label, real_label, and group_label
-        return image, doctor_label, real_label, group_label
+        return features_tensor, doctor_label, real_label, group_label
     
 class ParkinsonDataset(Dataset):
     def __init__(self, dataframe, data_dir, transform=None, is_train=True, oversample_option=1, k=None, class_weights=None):
