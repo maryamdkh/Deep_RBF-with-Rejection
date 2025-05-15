@@ -27,6 +27,8 @@ def main():
     parser.add_argument('--no_cuda', action='store_true', help='Disable CUDA even if available')
     parser.add_argument("--distance_metric", type=str, default='l2',
                         help="The distance metric used to calculate the distance in loss.")
+    parser.add_argument("--lambda_margin", type=float, default=1.0,
+                        help="Margin for the hinge loss (default: 1.0)")
     
     args = parser.parse_args()
     
@@ -53,6 +55,7 @@ def main():
     args_template.num_classes = args.num_classes
     args_template.feature_dim = args.feature_dim
     args_template.distance_metric = args.distance_metric
+    args_template.lambda_margin = args.lambda_margin
     
     # Load all models
     models = load_all_models(args.model_paths, feature_extractor, args_template, device)
