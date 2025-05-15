@@ -57,8 +57,9 @@ def main():
     args_template.distance_metric = args.distance_metric
     args_template.lambda_margin = args.lambda_margin
     
+    model_paths = args.model_paths.split(" ")
     # Load all models
-    models = load_all_models(args.model_paths, feature_extractor, args_template, device)
+    models = load_all_models(model_paths, feature_extractor, args_template, device)
     print(f"Loaded {len(models)} models")
     
     # Run inference
