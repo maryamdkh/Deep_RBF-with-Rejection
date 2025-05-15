@@ -59,7 +59,7 @@ def main():
     args_template.distance_metric = args.distance_metric
     args_template.lambda_margin = args.lambda_margin
 
-    print(args.model_paths)
+    # print(args.model_paths)
     
     model_paths = args.model_paths
     # Load all models

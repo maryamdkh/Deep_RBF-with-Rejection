@@ -1,5 +1,5 @@
 import torch
-
+import numpy as np
 def label_pahaw_images(models, data_loader, device, rejection_threshold=1.0, 
                       confidence_threshold=0.5, voting_method='majority'):
     """
@@ -22,7 +22,7 @@ def label_pahaw_images(models, data_loader, device, rejection_threshold=1.0,
     with torch.no_grad():
         for images, true_labels, paths in data_loader:
             images = images.to(device)
-            true_labels = true_labels.cpu().numpy()  # Convert true labels to numpy array
+            true_labels = np.asanyarray(true_labels)  # Convert true labels to numpy array
             
             batch_size = images.size(0)
             
