@@ -60,7 +60,8 @@ def load_all_models(model_paths, feature_extractor, args_template, device):
     models = []
     for path in model_paths:
         model = DeepRBFNetwork(feature_extractor, args_template)
-        model.load_state_dict(torch.load(path, map_location=device))
+        model.load_state_dict(torch.load(path, map_location=device)["model_state_dict"])
         model.to(device)
         models.append(model)
     return models
+
