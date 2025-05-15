@@ -3,6 +3,8 @@ import torch
 import pandas as pd
 from data.Dataset import PaHaWDataset
 from torch.utils.data import DataLoader
+from trainer.utils import plot_confusion_matrix
+
 from model.utils import load_feature_extractor, load_all_models
 
 from semi_supervised.PaHaW import label_pahaw_images
@@ -42,7 +44,7 @@ def main():
     print(f"Loaded dataset with {len(df)} images")
     
     # Create dataset and data loader
-    dataset = PaHaWDataset(df, image_root_dir=args.image_root, has_labels=False)
+    dataset = PaHaWDataset(df, image_root_dir=args.image_root, has_labels=True)
     data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
     
     # Initialize feature extractor (replace with your actual feature extractor)
@@ -78,10 +80,13 @@ def main():
         output_data.append({
             'image_path': path,
             'predicted_label': pred['pred_label'],
+            'true_label': pred['true_label'],
             'confidence': pred['confidence']
         })
     
     # Save results to CSV
+    target_names = ["control", "parkinson", "rejected"]  # Adjust based on your labels
+    plot_confusion_matrix(output_data['true_label'], output_data['predicted_label'], target_names,'/content/')
     output_df = pd.DataFrame(output_data)
     output_df.to_csv(args.output, index=False)
     print(f"Saved results to {args.output}")
