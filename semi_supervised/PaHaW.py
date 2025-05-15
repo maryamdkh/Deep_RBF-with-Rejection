@@ -14,7 +14,7 @@ def label_pahaw_images(models, data_loader, device, rejection_threshold=1.0,
         voting_method (str): Voting method to use - 'majority' or 'distance_weighted'
         
     Returns:
-        dict: Dictionary mapping image paths to their predicted labels (2 for rejected),
+        dict: Dictionary mapping image paths to their predicted labels (-1 for rejected),
               true labels, and optionally confidence scores if using distance_weighted method
     """
     results = {}
@@ -27,7 +27,7 @@ def label_pahaw_images(models, data_loader, device, rejection_threshold=1.0,
             batch_size = images.size(0)
             
             # Initialize storage for this batch
-            batch_votes = {path: {'labels': [], 'distances': [], 'true_label': true_label} 
+            batch_votes = {path: {'pred_labels': [], 'distances': [], 'true_label': true_label} 
                           for path, true_label in zip(paths, true_labels)}
             
             for model in models:
@@ -43,23 +43,14 @@ def label_pahaw_images(models, data_loader, device, rejection_threshold=1.0,
                 distances = distances.cpu().numpy()
                 
                 for i, path in enumerate(paths):
-                    batch_votes[path]['labels'].append(pred_labels[i])
+                    batch_votes[path]['pred_labels'].append(pred_labels[i])
                     batch_votes[path]['distances'].append(distances[i])
             
             # Determine final label for each image in this batch
             for path, vote_data in batch_votes.items():
-                labels = vote_data['labels']
+                labels = vote_data['pred_labels']
                 distances = vote_data['distances']
                 true_label = vote_data['true_label']
-                
-                if len(labels) == 0:
-                    # All models rejected this sample
-                    results[path] = {
-                        'pred_label': 2, 
-                        'confidence': 0.0,
-                        'true_label': true_label
-                    }
-                    continue
                 
                 if voting_method == 'majority':
                     # Option 1: Simple majority voting
@@ -89,7 +80,7 @@ def label_pahaw_images(models, data_loader, device, rejection_threshold=1.0,
                         final_label = max(vote_weights.items(), key=lambda x: x[1])[0]
                         confidence = vote_weights[final_label]
                     else:
-                        final_label = 2
+                        final_label = -1
                         confidence = 0.0
                 
                 else:
