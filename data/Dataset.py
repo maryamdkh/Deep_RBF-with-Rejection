@@ -21,20 +21,15 @@ class PaHaWDataset(Dataset):
         """
         self.df = df.copy()
         self.image_root_dir = image_root_dir
-        self.transform = transform if transform else transforms.Compose([
-                                                            transforms.Resize((128, 128)),
-                                                            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize
-                                                        ])
         self.has_labels = has_labels
         
         # Default transform if none provided
-        if self.transform is None:
-            self.transform = transforms.Compose([
-                transforms.Resize((224, 224)),  # Adjust size based on your feature extractor
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406],  # Standard ImageNet normalization
-                                     std=[0.229, 0.224, 0.225])
-            ])
+        self.transform = transform if transform else transforms.Compose([
+            transforms.Resize((128, 128)),  # First resize the image
+            transforms.ToTensor(),  # Then convert to tensor
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],  # Normalize tensor
+                               std=[0.229, 0.224, 0.225])
+        ])
 
     def __len__(self):
         return len(self.df)
@@ -47,8 +42,10 @@ class PaHaWDataset(Dataset):
         if self.image_root_dir is not None:
             img_path = os.path.join(self.image_root_dir, img_path)
         
-        # Load and transform image
+        # Load image
         image = Image.open(img_path).convert('RGB')  # Ensure RGB format
+        
+        # Apply transform (which now properly converts PIL to Tensor first)
         if self.transform:
             image = self.transform(image)
         
