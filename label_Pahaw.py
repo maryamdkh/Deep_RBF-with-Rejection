@@ -14,8 +14,8 @@ def main():
     parser = argparse.ArgumentParser(description='Label images using an ensemble of DeepRBFNetwork models')
     parser.add_argument('--dataset', type=str, required=True, help='Path to CSV file containing image paths')
     parser.add_argument('--image_root', type=str, default=None, help='Root directory for images (optional)')
-    parser.add_argument('--model_paths', type=str, required=True,
-                       help='Paths to trained model checkpoints (space separated)')
+    parser.add_argument('--model_paths', nargs='+', required=True, 
+                   help='List of model paths')
     parser.add_argument('--output', type=str, required=True, help='Output CSV file for results')
     parser.add_argument('--batch_size', type=int, default=32, help='Batch size for inference')
     parser.add_argument('--rejection_threshold', type=float, default=1.0, 
