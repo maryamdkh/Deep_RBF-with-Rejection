@@ -88,8 +88,8 @@ def main():
     
     # Save results to CSV
     target_names = ["control", "parkinson", "rejected"]  # Adjust based on your labels
-    plot_confusion_matrix(output_data['true_label'], output_data['predicted_label'], target_names,'/content/')
     output_df = pd.DataFrame(output_data)
+    plot_confusion_matrix(output_df['true_label'], output_df['predicted_label'], target_names,'/content/')
     output_df.to_csv(args.output, index=False)
     print(f"Saved results to {args.output}")
 
