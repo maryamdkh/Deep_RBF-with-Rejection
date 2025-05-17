@@ -44,13 +44,12 @@ def load_feature_extractor(device, data_path=None):
 
     return model
 
-def load_all_models(model_paths, feature_extractor, args_template, device):
+def load_all_models(model_paths, args_template, device):
     """
     Load all trained models from disk.
     
     Args:
         model_paths (list): List of paths to saved model state_dicts
-        feature_extractor (nn.Module): Backbone CNN
         args_template: Template args object with model parameters
         device: Device to load models onto
         
@@ -59,7 +58,9 @@ def load_all_models(model_paths, feature_extractor, args_template, device):
     """
     models = []
     for path in model_paths:
-        model = DeepRBFNetwork(feature_extractor, args_template)
+        # Initialize feature extractor (replace with your actual feature extractor)
+        feature_extractor  = load_feature_extractor(device=device)
+        model = DeepRBFNetwork(feature_extractor=feature_extractor, args=args_template)
         model.load_state_dict(torch.load(path, map_location=device)["model_state_dict"])
         model.to(device)
         models.append(model)

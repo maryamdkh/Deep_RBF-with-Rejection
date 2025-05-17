@@ -22,6 +22,8 @@ def main():
                        help='Threshold for rejection based on distance')
     parser.add_argument('--confidence_threshold', type=float, default=0.5, 
                        help='Threshold for rejection based on confidence')
+    parser.add_argument("--input_dim", type=int, required=True,
+                        help="Dimension of the feature vector input to the DeepRBF network")
     parser.add_argument('--voting_method', type=str, default='majority', 
                        choices=['majority', 'distance_weighted'], help='Voting method to use')
     parser.add_argument('--num_classes', type=int, required=True, help='Number of classes in the model')
@@ -47,8 +49,7 @@ def main():
     dataset = PaHaWDataset(df, image_root_dir=args.image_root, has_labels=True)
     data_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
     
-    # Initialize feature extractor (replace with your actual feature extractor)
-    feature_extractor  = load_feature_extractor(device=device)
+    
     
     # Create template args for model initialization
     class ArgsTemplate:
@@ -58,12 +59,13 @@ def main():
     args_template.feature_dim = args.feature_dim
     args_template.distance_metric = args.distance_metric
     args_template.lambda_margin = args.lambda_margin
+    args_template.input_dim = args.input_dim
 
     # print(args.model_paths)
     
     model_paths = args.model_paths
     # Load all models
-    models = load_all_models(model_paths, feature_extractor, args_template, device)
+    models = load_all_models(model_paths, args_template, device)
     print(f"Loaded {len(models)} models")
     
     # Run inference
