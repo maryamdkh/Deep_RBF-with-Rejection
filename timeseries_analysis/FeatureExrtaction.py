@@ -36,19 +36,22 @@ class TimeSeriesFeatureProcessor:
         # Filter lines based on length threshold
         valid_lines = [line for line in data['lines'] if len(line['points']) >= 10]
         
-        if not valid_lines:
-            return None
-        
-        # Convert to numpy array [n_lines, n_points, 3] where last dim is [time, x, y]
         sample_data = []
-        for line in valid_lines:
-            points = np.array([[p['x'], p['y']] for p in line['points']])
-            times = np.array(line['times']).reshape(-1, 1)  # Reshape to column vector
-            # Combine time with coordinates [time, x, y]
-            line_data = np.concatenate([times, points], axis=1)
-            sample_data.append(line_data)
+        for line in valid_lines[::-1]:
+            for idi , point in enumerate(line['points']):
+                x = float(point['x'])
+                y = float(point['y'])
+                sample_data.append([line['times'][idi],x,y])
+
+        sample_data = np.asanyarray(sample_data)
+        if sample_data.size == 0 or sample_data is None:
+            print("invalid sample_data")
+            print(file_path)
+            return
         
-        return np.stack(sample_data)
+        filtered_data = sample_data[1:-1:]
+        return np.asanyarray(filtered_data)
+
     
     def _extract_features_single(self, sample_data):
         """Extract features for a single sample with time component"""
@@ -305,6 +308,7 @@ class TimeSeriesFeatureProcessor:
                 feature_path = output_path  # Store the path where features were saved
             
             return features, feature_path
+        
         except Exception as e:
             print(f"Error processing sample {sample_id}: {str(e)}")
             return None, None
@@ -333,7 +337,7 @@ class TimeSeriesFeatureProcessor:
         # Add feature paths to the original dataframe
         df['feature_path'] = None  # Initialize column
         for idx, row in df.iterrows():
-            sample_id = row.uid
+            sample_id = row['path'].split("/")[-1].split(".")[0] 
             for result in results:
                 if result[1] and sample_id in result[1]:  # Check if path exists and matches sample_id
                     df.at[idx, 'feature_path'] = result[1]
