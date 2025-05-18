@@ -71,9 +71,8 @@ class ParkinsonTSDataset(Dataset):
     def __init__(self, dataframe, data_dir, transform=None, is_train=True, oversample_option=1, k=None, class_weights=None,line_threshold=10):
         """
         Args:
-            dataframe (pd.DataFrame): DataFrame containing image file paths, doctor_label, and real_label.
+            dataframe (pd.DataFrame): DataFrame containing json file paths, doctor_label, and real_label.
             data_dir (str): Root directory where images are stored.
-            transform (callable, optional): Transform to be applied to the images.
             is_train (bool): Whether the dataset is for training (default: True).
             oversample_option (int): 1 for equal and balanced sampling, 2 for weighted sampling.
             k (int, optional): Constant number to oversample to. If None, oversample to the max length within each pair.
@@ -82,7 +81,6 @@ class ParkinsonTSDataset(Dataset):
         """
         self.dataframe = dataframe
         self.data_dir = data_dir
-        self.transform = transform
         self.is_train = is_train
         self.oversample_option = oversample_option
         self.k = k

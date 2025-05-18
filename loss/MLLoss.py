@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class MLLoss(nn.Module):
     def __init__(self, lambda_margin=500,lambda_min=100):
         """
