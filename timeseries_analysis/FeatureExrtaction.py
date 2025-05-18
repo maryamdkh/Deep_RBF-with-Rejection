@@ -279,7 +279,7 @@ class TimeSeriesFeatureProcessor:
 
     def process_sample(self, row, save_to_disk=True):
         """Process a single sample from the DataFrame"""
-        sample_id = row.uid  # Assuming index is sample ID
+        sample_id = row['path'].split("/")[-1].split(".")[0]  # Assuming index is sample ID
         file_path = row['path']  # Assuming column is named 'path'
         feature_path = None  # Initialize feature path
         
