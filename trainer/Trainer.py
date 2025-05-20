@@ -1,309 +1,249 @@
-#!/usr/bin/env python3
-import os
-import argparse
-import pandas as pd
-import pickle
-from timeseries_analysis.FeatureExrtaction import TimeSeriesFeatureProcessor  
-from data.Dataset import ParkinsonTSDataset
-from data.utils import plot_group_distribution
-from model.utils import set_seed
 import torch
+import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+import os
+import seaborn as sns
 
-from loss.MLLoss import MLLoss
-from loss.SoftMLLoss import SoftMLLoss
-from trainer.Trainer import Trainer
-from model.Model import DeepRBFNetwork
-from trainer.utils import plot_confusion_matrix
-from sklearn.preprocessing import StandardScaler
+class Trainer:
+    def __init__(self, model, train_loader=None, val_loader=None,fold=None, criterion=None\
+    , optimizer=None,scheduler=None, device=None, save_dir=None,save_results=None):
+        """
+        Args:
+            model (nn.Module): The Deep-RBF network.
+            train_loader (DataLoader): DataLoader for training data.
+            val_loader (DataLoader): DataLoader for validation data.
+            criterion (nn.Module): Custom loss function.
+            optimizer (optim.Optimizer): Optimizer for training.
+            device (torch.device): Device to run the model on (e.g., 'cuda' or 'cpu').
+            save_dir (str): Directory to save the best model checkpoints.
+            save_results (str): Directory to save the results plot.
+        """
+        self.model = model
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        self.criterion = criterion
+        self.optimizer = optimizer
+        self.scheduler = scheduler
+        self.fold = fold
+        self.device = device
+        self.save_dir = save_dir
+        self.save_results = save_results
+        self.best_val_loss = float('inf')
+        self.best_model_weights = None  # Store the best model weights
 
+        # Create save directory if it doesn't exist
+        if self.save_dir: os.makedirs(self.save_dir, exist_ok=True)
+        if self.save_results: os.makedirs(self.save_results, exist_ok=True)
 
+        # Lists to store loss values for plotting
+        self.train_losses = []
+        self.val_losses = []
 
-def validate_fold(fold_id, df, args, device):
-    """
-    Validate a model for a single fold.
+    def train_epoch(self):
+        """
+        Train the model for one epoch.
+        """
+        self.model.train()
+        epoch_loss = 0.0
+        num_batches = 0  # Track the number of non-empty batches
 
-    Args:
-        fold_id (int): ID of the current fold.
-        df (pd.DataFrame): DataFrame for the dataset.
-        args (argparse.Namespace): Command-line arguments.
-        device (torch.device): Device to use for training.
-    """
-    print(f"validating fold {fold_id + 1}/{args.num_folds}")
+        # Use tqdm for progress bar
+        pbar = tqdm(self.train_loader, desc="Training", leave=False)
+        for inputs, doctor_labels, real_labels, _ in pbar:
+            # Skip empty batches
+            if len(inputs) == 0:
+                continue
 
-    # Initialize feature processor
-    processor = TimeSeriesFeatureProcessor(
-        method=args.method,
-        output_dir=args.features_dir,
-        rocket_n_kernels=args.rocket_kernels,
-        n_jobs=args.n_jobs
-    )
+            # Move data to the correct device
+            inputs = inputs.to(self.device)
+            doctor_labels = doctor_labels.to(self.device)
+            real_labels = real_labels.to(self.device)
 
-    with open(os.path.join(f"{args.modeling_results_dir}/scalers/",f'scaler_{fold_id+1}.pkl'), 'rb') as f:
-        scaler = pickle.load(f)
+            # Forward pass
+            distances = self.model(inputs)
+            loss = self.criterion(distances, doctor_labels, real_labels)
+            # print(loss)
 
+            # Backward pass and optimization
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
 
-    # Process DataFrame
-    print(f"Processing {len(df)} samples with {args.method} method...")
-    features, df_with_paths = processor.process_dataframe(df)
-    df_with_paths.to_csv(os.path.join(args.dfs_dir,f'val_df_fold_{fold_id + 1}.csv'))
-    # Load training dataset
-    val_dataset = ParkinsonTSDataset(dataframe=df_with_paths,scaler=scaler,is_train=False)
-    plot_group_distribution(val_dataset,
-                            file_path = f"{args.modeling_results_dir}/distributions/valid_{fold_id+1}.png", 
-                            title=f"Group Distribution Validation Fold {fold_id+1}")
-    
-    data_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
+            # Accumulate loss
+            epoch_loss += loss.item()
+            num_batches += 1
 
-    # Define model, loss, optimizer, and data loaders
-    model = DeepRBFNetwork(args=args) 
-    model = model.to(device)
-  
-    # Initialize trainer
-    trainer = Trainer(
-        model=model,
-        fold = fold_id+1,
-        device=device,
-        save_results=os.path.join(args.modeling_results_dir)
-    )
-    trainer.best_model_weights = os.path.join(args.pre_model_dir,f"best_model_{fold_id + 1}.pt")
-    trainer.load_best_model()
+            # Update progress bar
+            pbar.set_postfix({"Train Loss": loss.item()})
 
-    inference_method = "min_distance" if args.loss_type == "mlloss" else "softml"
-    # Perform inference on training data and generate classification report
-    return trainer.predict(dataloader=data_loader, threshold=args.rejection_thresh,\
-                    inference_method=inference_method, lambda_eval=args.lambda_eval,confidence_threshold=args.confidence_threshold)
+        # Return average loss for the epoch (avoid division by zero)
+        return epoch_loss / num_batches if num_batches > 0 else 0.0
 
-def train_fold(fold_id, train_df, val_df, args, device):
-    """
-    Train a model for a single fold.
+    def validate_epoch(self):
+        """
+        Validate the model for one epoch.
 
-    Args:
-        fold_id (int): ID of the current fold.
-        train_df (pd.DataFrame): DataFrame for the training set.
-        val_df (pd.DataFrame): DataFrame for the validation set.
-        args (argparse.Namespace): Command-line arguments.
-        device (torch.device): Device to use for training.
-    """
-    print(f"Training fold {fold_id + 1}/{args.num_folds}")
+        Returns:
+            float: Average validation loss for the epoch. Returns 0.0 if no validation data is available or all batches are empty.
+        """
+        # If there is no validation data, return 0.0
+        if self.val_loader is None:
+            print("No validation data provided. Skipping validation.")
+            return 0.0
 
-    # Initialize feature processor
-    processor = TimeSeriesFeatureProcessor(
-        method=args.method,
-        output_dir=args.features_dir,
-        rocket_n_kernels=args.rocket_kernels,
-        n_jobs=args.n_jobs
-    )
-    scaler = StandardScaler()
-    with open(os.path.join(f"{args.modeling_results_dir}/scalers/",f'scaler_{fold_id+1}.pkl'), 'wb') as f:
-        pickle.dump(scaler, f)
-    
-    # Process DataFrame
-    print(f"Processing {len(train_df)} samples with {args.method} method...")
-    features, df_with_paths = processor.process_dataframe(train_df)
-    df_with_paths.to_csv(os.path.join(args.dfs_dir,f'train_df_fold_{fold_id + 1}.csv'))
-    # Load training dataset
-    train_dataset = ParkinsonTSDataset(dataframe=df_with_paths,scaler=scaler,is_train=True)
-    plot_group_distribution(train_dataset,
-                            file_path = f"{args.modeling_results_dir}/distributions/train_{fold_id+1}.png", 
-                            title=f"Group Distribution Train Fold {fold_id+1}")
-    
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
+        self.model.eval()
+        epoch_loss = 0.0
+        num_batches = 0  # Track the number of non-empty batches
 
-    args.input_dim = train_dataset.__getitem__(2)[0].shape[0]
-    # Define model, loss, optimizer, and data loaders
-    model = DeepRBFNetwork(args=args) 
-    criterion = MLLoss(lambda_margin=args.lambda_margin,lambda_min=args.lambda_min) if args.loss_type == "mlloss" else SoftMLLoss(lambda_margin=args.lambda_margin)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    scheduler = CosineAnnealingLR(optimizer, T_max=args.num_epochs, eta_min=args.lr * 0.01)
+        with torch.no_grad():
+            # Use tqdm for progress bar
+            pbar = tqdm(self.val_loader, desc="Validation", leave=False)
+            for batch in pbar:
+                # Unpack the batch (assuming batch is a tuple of (inputs, doctor_labels, real_labels, _))
+                inputs, doctor_labels, real_labels, _ = batch
+                # print(inputs.shape)
 
-    model = model.to(device)
+                # Skip empty batches
+                if len(inputs) == 0:
+                    continue
 
-    # Initialize validation dataset and DataLoader only if val_df is not empty
-    val_loader = None
-    if not val_df.empty:
-        # Process DataFrame
-        print(f"Processing {len(val_df)} samples with {args.method} method...")
-        features, df_with_paths = processor.process_dataframe(val_df)
-        df_with_paths.to_csv(os.path.join(args.dfs_dir,f'valid_df_fold_{fold_id + 1}.csv'))
-        val_dataset = ParkinsonTSDataset(dataframe=df_with_paths,scaler=scaler, is_train=False)
-        plot_group_distribution(val_dataset,
-                            file_path = f"{args.modeling_results_dir}/distributions/valid_{fold_id+1}.png", 
-                            title=f"Group Distribution Validation Fold {fold_id+1}")
-        val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=2)
+                # Move data to the correct device
+                inputs = inputs.to(self.device)
+                doctor_labels = doctor_labels.to(self.device)
+                real_labels = real_labels.to(self.device)
 
-    # Initialize trainer
-    trainer = Trainer(
-        model=model,
-        train_loader=train_loader,
-        val_loader=val_loader,  # Pass None if val_df is empty
-        fold=fold_id + 1,
-        criterion=criterion,
-        optimizer=optimizer,
-        scheduler=scheduler,
-        device=device,
-        save_dir=os.path.join(args.checkpoints_dir),
-        save_results=os.path.join(args.modeling_results_dir,"loss")
-    )
+                # Forward pass
+                distances = self.model(inputs)
+                loss = self.criterion(distances, doctor_labels, real_labels)
 
-    # Train the model
-    trainer.train(num_epochs=args.num_epochs)
-  
-def read_csv_safe(file_path):
-    """
-    Safely read a CSV file. If the file is empty, return an empty DataFrame.
+                # Accumulate loss
+                epoch_loss += loss.item()
+                num_batches += 1
 
-    Args:
-        file_path (str): Path to the CSV file.
+                # Update progress bar
+                pbar.set_postfix({"Val Loss": loss.item()})
 
-    Returns:
-        pd.DataFrame: DataFrame containing the data from the CSV file, or an empty DataFrame if the file is empty.
-    """
-    try:
-        df = pd.read_csv(file_path)
-        return df
-    except pd.errors.EmptyDataError:
-        print(f"Warning: The file '{file_path}' is empty. Returning an empty DataFrame.")
-        return pd.DataFrame()  # Return an empty DataFrame
-    except FileNotFoundError:
-        print(f"Error: The file '{file_path}' does not exist.")
-        return pd.DataFrame()  # Return an empty DataFrame
-    except Exception as e:
-        print(f"An unexpected error occurred while reading '{file_path}': {e}")
-        return pd.DataFrame()  # Return an empty DataFrame
-    
-def init_config(args):
-    os.makedirs(args.dfs_dir, exist_ok=True)
-    os.makedirs(args.features_dir, exist_ok=True)
-    os.makedirs(args.checkpoints_dir, exist_ok=True)
-    os.makedirs(args.modeling_results_dir, exist_ok=True)
-    os.makedirs(os.path.join(args.modeling_results_dir,"distributions"), exist_ok=True)
-    os.makedirs(os.path.join(args.modeling_results_dir,"loss"), exist_ok=True)
-    os.makedirs(os.path.join(args.modeling_results_dir,"scalers"), exist_ok=True)
-    
-    set_seed(args.random_state)
+        # Return average loss for the epoch (avoid division by zero)
+        if num_batches > 0:
+            return epoch_loss / num_batches
+        else:
+            print("All validation batches were empty. Returning 0.0 as validation loss.")
+            return 0.0
 
-def init_parser():
-        # Set up argument parser
-    parser = argparse.ArgumentParser(description='Process time series features from a DataFrame')
-    parser.add_argument('--dfs_dir', type=str, required=True,
-                       help='Directory to save processed DataFrame with feature paths')
-    parser.add_argument('--features_dir', type=str, required=True,
-                       help='Directory to save feature files')
-    parser.add_argument('--checkpoints_dir', type=str, required=True,
-                       help='Directory to save model checkpoints')
-    parser.add_argument('--modeling_results_dir', type=str, required=True,
-                       help='Directory to save feature modeling results.')
-    parser.add_argument("--folds_root_dir_train", type=str, required=True,
-                        help="Root directory containing fold-specific train and validation CSV files")
-    parser.add_argument("--folds_root_dir_val", type=str, required=True,
-                        help="Root directory containing fold-specific validation CSV files")
-    parser.add_argument("--num_folds", type=int, default=25,
-                        help="Number of folds (default: 25)")
-    parser.add_argument('--method', type=str, default='rocket',
-                       choices=['rocket', 'handcrafted', 'tsfresh', 'catch22', 'raw'],
-                       help='Feature extraction method')
-    parser.add_argument('--rocket_kernels', type=int, default=10000,
-                       help='Number of kernels for ROCKET method')
-    parser.add_argument('--n_jobs', type=int, default=-1,
-                       help='Number of parallel jobs (-1 for all cores)')
-    parser.add_argument("--num_classes", type=int, required=True,
-                        help="Number of classes in the dataset")
-    parser.add_argument("--feature_dim", type=int, required=True,
-                        help="Dimension of the feature vector used to calculate the distance.")
-    # parser.add_argument("--input_dim", type=int, required=True,
-    #                     help="Dimension of the feature vector input to the DeepRBF network")
-    parser.add_argument("--lambda_margin", type=float, default=1.0,
-                        help="Margin for the hinge loss (default: 1.0)")
-    parser.add_argument("--lambda_min", type=float, default=100,
-                        help="Minimum intra-distance (default: 100)")
-    parser.add_argument("--confidence_threshold", type=float, default=50,
-                        help="The minimum distance difference between classes, used during inference.")
-    parser.add_argument("--distance_metric", type=str, default='l2',
-                        help="The distance metric used to calculate the distance in loss.")
-    parser.add_argument("--lr", type=float, default=0.001,
-                        help="Learning rate for the optimizer (default: 0.001)")
-    parser.add_argument("--batch_size", type=int, default=32,
-                        help="Batch size for training and validation (default: 32)")
-    parser.add_argument("--num_epochs", type=int, default=20,
-                        help="Number of epochs to train (default: 20)")
-    parser.add_argument("--pre_model_dir", type=str, default="",
-                        help="Directory to the pretrained models.")
-    parser.add_argument("--rejection_thresh", type=float, default=16,
-                        help="Threshold used to reject the sample.")
-    parser.add_argument("--loss_type", type=str, default="mlloss",
-                        help="Type of the loss function to use for training the model.")
-    parser.add_argument("--lambda_eval", type=float, default=100, required=False,
-                        help="Lambda parameter for inference when using soft mlloss.")
-    parser.add_argument("--random_state", type=int, default=42, required=False,
-                        help="Random state.")
+    def save_checkpoint(self, loss):
+        """
+        Save the model checkpoint if the loss improves.
+        """
+        if loss < self.best_val_loss:
+            self.best_val_loss = loss
+            checkpoint_path = os.path.join(self.save_dir, f"best_model_{self.fold}.pt")
+            torch.save({
+                'model_state_dict': self.model.state_dict(),
+            }, checkpoint_path)
+            print(f"Saved best model checkpoint for fold {self.fold} with loss {loss:.4f}")
 
-    return parser
- 
-def main():
-    args = init_parser().parse_args()
-    init_config(args)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    def plot_losses(self):
+        """
+        Plot the training and validation losses over epochs.
+        """
+        plt.figure(figsize=(10, 5))
+        plt.plot(self.train_losses, label="Train Loss")
+        plt.plot(self.val_losses, label="Validation Loss")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.title("Training and Validation Losses")
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(os.path.join(self.save_results,f"loss_{self.fold}.png"))
+        plt.show()
 
-    for fold_id in range(15):
-        # Load train and validation CSV files for the current fold
-        train_csv_path = os.path.join(args.folds_root_dir_train, f"train_df_fold_{fold_id + 1}.csv")
-        val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
+    def load_best_model(self):
+        """
+        Load the best model weights.
+        """
+        if self.best_model_weights is not None:
+            self.model.load_state_dict(torch.load(self.best_model_weights)["model_state_dict"])
+            print("Loaded the best model weights.")
+        else:
+            print("No best model weights found. Training might not have started yet.")
 
-        train_df = read_csv_safe(train_csv_path)
-        val_df = read_csv_safe(val_csv_path)
-
-        # Train the model for the current fold
-        train_fold(fold_id, train_df, val_df, args, device)
     
 
-    print("Training completed for all folds.")
+    def train(self, num_epochs):
+        """
+        Train the model for a given number of epochs.
+        """
+        for epoch in range(num_epochs):
+            print(f"Fold {self.fold}, Epoch {epoch + 1}/{num_epochs}, LR {self.optimizer.param_groups[0]['lr']}")
 
-    #Initialize lists to collect all predicted and true labels across all folds
-    # all_folds_predicted_labels = []
-    # all_folds_doctor_labels = []    
-    # all_folds_real_labels = []    
-    # all_folds_subject_ids = []    
-    # all_folds_distances = []
+            # Train and validate
+            train_loss = self.train_epoch()
+            val_loss = self.validate_epoch()
 
-    # # Validate a model for each fold
-    # for fold_id in range(args.num_folds):
-    #     # Load validation CSV file for the current fold
-    #     val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
-    #     val_df = read_csv_safe(val_csv_path)
-    #     if not len(val_df):
-    #       continue
+            # Save losses for plotting
+            self.train_losses.append(train_loss)
+            self.val_losses.append(val_loss)
+            self.scheduler.step()
+
+            # Save the best model checkpoint
+            if self.val_loader is None:
+              self.save_checkpoint(train_loss)
+            else:
+              self.save_checkpoint(val_loss)
+
+            # Print epoch results
+            print(f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
+
+        # Plot losses after training
+        self.plot_losses()
         
-    #     # Validate the model for the current fold
-    #     all_distances,all_predicted_labels, all_doctor_labels = validate_fold(fold_id, val_df, args, device)
-        
-    #     # Collect the predicted and true labels for this fold
-    #     all_folds_predicted_labels.extend(all_predicted_labels)
-    #     all_folds_doctor_labels.extend(all_doctor_labels)
-    #     all_folds_real_labels.extend(val_df.loc[:,"real_labels"].to_list() )
-    #     all_folds_subject_ids.extend([item.split("/")[-1].split(".")[0] for item in val_df.loc[:,"path"].to_list()])
-    #     all_folds_distances.extend(all_distances)
+    def predict(self, dataloader, inference_method="min_distance", threshold=1.0, lambda_eval=500,confidence_threshold=50):
+        """
+        Perform inference on a given DataLoader and return predicted and actual labels.
 
+        Args:
+            dataloader (DataLoader): DataLoader for inference.
+            inference_method (str): Inference method to use. Options: "min_distance" or "softml".
+            threshold (float): Threshold for rejection (used only for "min_distance" inference).
+            lambda_eval (float): Lambda parameter for evaluation (used only for "softml" inference).
 
-    # print("Validating completed for all folds.")
+        Returns:
+            all_predicted_labels (list): List of predicted labels.
+            all_doctor_labels (list): List of actual labels.
+        """
+        self.model.eval()  # Set model to evaluation mode
+        all_predicted_labels = []
+        all_distances = []
+        all_doctor_labels = []
 
-    # val_df_data = {"id":all_folds_subject_ids, "doctor_label":all_folds_doctor_labels,"real_label":all_folds_real_labels,
-    #               "predicted_label":all_folds_predicted_labels,"distance":all_folds_distances}
-    # pd.DataFrame(data =val_df_data).to_csv("valiadtion_results.csv")
+        with torch.no_grad():
+            for inputs, doctor_labels, _, _ in dataloader:
+                # Skip empty batches
+                if len(inputs) == 0:
+                    continue
 
-    # # Plot a confusion matrix for all folds combined
-    # target_names = ["control", "parkinson", "rejected"]  # Adjust based on your labels
-    # plot_confusion_matrix(all_folds_doctor_labels, all_folds_predicted_labels, target_names,args.save_results)
-    # args_dict = vars(args)
-    # args_df = pd.DataFrame.from_dict(args_dict, orient='index', columns=['Value'])
-    # args_df.to_csv(os.path.join(args.save_results, "config_arguments.csv"))
+                # Move data to the correct device
+                inputs = inputs.to(self.device)
+                doctor_labels = doctor_labels.to(self.device)
 
+                # Predict labels based on the selected inference method
+                if inference_method == "min_distance":
+                    distances,predicted_labels, is_rejected = self.model.inference(inputs, rejection_threshold=threshold,confidence_threshold=confidence_threshold)
+                    # Handle rejected samples (assign label 2)
+                    predicted_labels[is_rejected] = 2
+                    all_distances.append(distances.cpu().numpy())
 
+                elif inference_method == "softml":
+                    predicted_labels, is_rejected = self.model.inference_softml(inputs, lambda_eval=lambda_eval)
+                    # Handle rejected samples (assign label 2)
+                    predicted_labels[is_rejected] = 2
+                else:
+                    raise ValueError(f"Invalid inference_method: {inference_method}. Choose 'min_distance' or 'softml'.")
 
-    
+                # Collect results
+                all_predicted_labels.extend(predicted_labels.cpu().numpy())
+                all_doctor_labels.extend(doctor_labels.cpu().numpy())
 
-
-if __name__ == '__main__':
-    main()
+        return all_distances,all_predicted_labels, all_doctor_labels

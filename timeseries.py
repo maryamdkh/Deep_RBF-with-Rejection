@@ -144,8 +144,8 @@ def train_fold(fold_id, train_df, val_df, args, device):
         optimizer=optimizer,
         scheduler=scheduler,
         device=device,
-        save_dir=os.path.join(args.save_dir),
-        save_results=os.path.join(args.save_results,"loss")
+        save_dir=os.path.join(args.checkpoints_dir),
+        save_results=os.path.join(args.modeling_results_dir,"loss")
     )
 
     # Train the model
