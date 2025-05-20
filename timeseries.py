@@ -16,7 +16,59 @@ from loss.MLLoss import MLLoss
 from loss.SoftMLLoss import SoftMLLoss
 from trainer.Trainer import Trainer
 from model.Model import DeepRBFNetwork
+from trainer.utils import plot_confusion_matrix
 
+
+def validate_fold(fold_id, df, args, device):
+    """
+    Validate a model for a single fold.
+
+    Args:
+        fold_id (int): ID of the current fold.
+        df (pd.DataFrame): DataFrame for the dataset.
+        args (argparse.Namespace): Command-line arguments.
+        device (torch.device): Device to use for training.
+    """
+    print(f"validating fold {fold_id + 1}/{args.num_folds}")
+
+    # Initialize feature processor
+    processor = TimeSeriesFeatureProcessor(
+        method=args.method,
+        output_dir=args.output_dir,
+        rocket_n_kernels=args.rocket_kernels,
+        n_jobs=args.n_jobs
+    )
+
+    # Process DataFrame
+    print(f"Processing {len(df)} samples with {args.method} method...")
+    features, df_with_paths = processor.process_dataframe(df)
+    df_with_paths.to_csv(os.path.join(args.output_df_dir,f'val_df_fold_{fold_id + 1}.csv'))
+    # Load training dataset
+    val_dataset = ParkinsonTSDataset(dataframe=df_with_paths,is_train=False)
+    plot_group_distribution(val_dataset,
+                            file_path = f"{args.modeling_results_dir}/distributions/valid_{fold_id+1}.png", 
+                            title=f"Group Distribution Validation Fold {fold_id+1}")
+    
+    data_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2)
+
+    # Define model, loss, optimizer, and data loaders
+    model = DeepRBFNetwork(args=args) 
+    model = model.to(device)
+  
+    # Initialize trainer
+    trainer = Trainer(
+        model=model,
+        fold = fold_id+1,
+        device=device,
+        save_results=os.path.join(args.modeling_results_dir)
+    )
+    trainer.best_model_weights = os.path.join(args.pre_model_dir,f"best_model_{fold_id + 1}.pt")
+    trainer.load_best_model()
+
+    inference_method = "min_distance" if args.loss_type == "mlloss" else "softml"
+    # Perform inference on training data and generate classification report
+    return trainer.predict(dataloader=data_loader, threshold=args.rejection_thresh,\
+                    inference_method=inference_method, lambda_eval=args.lambda_eval,confidence_threshold=args.confidence_threshold)
 
 def train_fold(fold_id, train_df, val_df, args, device):
     """
@@ -86,7 +138,6 @@ def train_fold(fold_id, train_df, val_df, args, device):
     # Train the model
     trainer.train(num_epochs=args.num_epochs)
   
-  
 def read_csv_safe(file_path):
     """
     Safely read a CSV file. If the file is empty, return an empty DataFrame.
@@ -110,8 +161,18 @@ def read_csv_safe(file_path):
         print(f"An unexpected error occurred while reading '{file_path}': {e}")
         return pd.DataFrame()  # Return an empty DataFrame
     
-def main():
-    # Set up argument parser
+def init_config(args):
+    os.makedirs(args.dfs_dir, exist_ok=True)
+    os.makedirs(args.features_dir, exist_ok=True)
+    os.makedirs(args.checkpoints_dir, exist_ok=True)
+    os.makedirs(args.modeling_results_dir, exist_ok=True)
+    os.makedirs(os.path.join(args.modeling_results_dir,"distributions"), exist_ok=True)
+    os.makedirs(os.path.join(args.modeling_results_dir,"loss"), exist_ok=True)
+    
+    set_seed(args.random_state)
+
+def init_parser():
+        # Set up argument parser
     parser = argparse.ArgumentParser(description='Process time series features from a DataFrame')
     parser.add_argument('--input', type=str, required=True, 
                        help='Path to input DataFrame pickle file')
@@ -156,18 +217,23 @@ def main():
                         help="Batch size for training and validation (default: 32)")
     parser.add_argument("--num_epochs", type=int, default=20,
                         help="Number of epochs to train (default: 20)")
-    
-    args = parser.parse_args()
-    os.makedirs(args.dfs_dir, exist_ok=True)
-    os.makedirs(args.features_dir, exist_ok=True)
-    os.makedirs(args.checkpoints_dir, exist_ok=True)
-    os.makedirs(args.modeling_results_dir, exist_ok=True)
-    os.makedirs(os.path.join(args.modeling_results_dir,"distributions"), exist_ok=True)
-    os.makedirs(os.path.join(args.modeling_results_dir,"loss"), exist_ok=True)
+    parser.add_argument("--pre_model_dir", type=str, default="",
+                        help="Directory to the pretrained models.")
+    parser.add_argument("--rejection_thresh", type=float, default=16,
+                        help="Threshold used to reject the sample.")
+    parser.add_argument("--loss_type", type=str, default="mlloss",
+                        help="Type of the loss function to use for training the model.")
+    parser.add_argument("--lambda_eval", type=float, default=100, required=False,
+                        help="Lambda parameter for inference when using soft mlloss.")
+    parser.add_argument("--random_state", type=int, default=42, required=False,
+                        help="Random state.")
 
+    return parser
+ 
+def main():
+    args = init_parser().parse_args()
+    init_config(args)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    set_seed(args.random_state)
-
 
     for fold_id in range(15):
         # Load train and validation CSV files for the current fold
@@ -182,6 +248,46 @@ def main():
     
 
     print("Training completed for all folds.")
+
+    #Initialize lists to collect all predicted and true labels across all folds
+    all_folds_predicted_labels = []
+    all_folds_doctor_labels = []    
+    all_folds_real_labels = []    
+    all_folds_subject_ids = []    
+    all_folds_distances = []
+
+    # Validate a model for each fold
+    for fold_id in range(args.num_folds):
+        # Load validation CSV file for the current fold
+        val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
+        val_df = read_csv_safe(val_csv_path)
+        if not len(val_df):
+          continue
+        
+        # Validate the model for the current fold
+        all_distances,all_predicted_labels, all_doctor_labels = validate_fold(fold_id, val_df, args, device)
+        
+        # Collect the predicted and true labels for this fold
+        all_folds_predicted_labels.extend(all_predicted_labels)
+        all_folds_doctor_labels.extend(all_doctor_labels)
+        all_folds_real_labels.extend(val_df.loc[:,"real_labels"].to_list() )
+        all_folds_subject_ids.extend([item.split("/")[-1].split(".")[0] for item in val_df.loc[:,"path"].to_list()])
+        all_folds_distances.extend(all_distances)
+
+
+    print("Validating completed for all folds.")
+
+    val_df_data = {"id":all_folds_subject_ids, "doctor_label":all_folds_doctor_labels,"real_label":all_folds_real_labels,
+                  "predicted_label":all_folds_predicted_labels,"distance":all_folds_distances}
+    pd.DataFrame(data =val_df_data).to_csv("valiadtion_results.csv")
+
+    # Plot a confusion matrix for all folds combined
+    target_names = ["control", "parkinson", "rejected"]  # Adjust based on your labels
+    plot_confusion_matrix(all_folds_doctor_labels, all_folds_predicted_labels, target_names,args.save_results)
+    args_dict = vars(args)
+    args_df = pd.DataFrame.from_dict(args_dict, orient='index', columns=['Value'])
+    args_df.to_csv(os.path.join(args.save_results, "config_arguments.csv"))
+
 
 
     

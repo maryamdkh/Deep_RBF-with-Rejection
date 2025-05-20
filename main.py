@@ -53,8 +53,6 @@ def validate_fold(fold_id, df, args, device):
     return trainer.predict(dataloader=data_loader, threshold=args.rejection_thresh,\
                     inference_method=inference_method, lambda_eval=args.lambda_eval,confidence_threshold=args.confidence_threshold)
 
-
-
 def train_fold(fold_id, train_df, val_df, args, device):
     """
     Train a model for a single fold.
@@ -119,7 +117,6 @@ def train_fold(fold_id, train_df, val_df, args, device):
     # Train the model
     trainer.train(num_epochs=args.num_epochs)
   
-
 def read_csv_safe(file_path):
     """
     Safely read a CSV file. If the file is empty, return an empty DataFrame.
@@ -143,8 +140,7 @@ def read_csv_safe(file_path):
         print(f"An unexpected error occurred while reading '{file_path}': {e}")
         return pd.DataFrame()  # Return an empty DataFrame
 
-
-def main():
+def init_parser():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Train Deep-RBF Network with Rejection")
     parser.add_argument("--feature_extractor", type=str, required=False, default=None,
@@ -192,20 +188,24 @@ def main():
     
     parser.add_argument("--random_state", type=int, default=42, required=False,
                         help="Random state.")
+    
+    return parser
                         
-    args = parser.parse_args()
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def init_config(args):
     set_seed(args.random_state)
-
     # Create directories for saving checkpoints and results
     os.makedirs(args.save_dir, exist_ok=True)
     os.makedirs(args.save_results, exist_ok=True)
     os.makedirs(os.path.join(args.save_results,"distributions"), exist_ok=True)
     os.makedirs(os.path.join(args.save_results,"loss"), exist_ok=True)
 
+def main():
+    
+    args = init_parser().parse_args()
+    init_config(args)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")    
     # Train a model for each fold
-    best_model_paths = []
     for fold_id in range(15):
         # Load train and validation CSV files for the current fold
         train_csv_path = os.path.join(args.folds_root_dir_train, f"train_df_fold_{fold_id + 1}.csv")
