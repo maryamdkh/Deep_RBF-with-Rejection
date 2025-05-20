@@ -90,8 +90,8 @@ class PaHaWTsDataset(Dataset):
         feature_shapes = []
         
         # First pass: Load all features and collect shapes
-        for idx in range(len(self.dataframe)):
-            feature_path =self.dataframe.iloc[idx]['feature_path']
+        for idx in range(len(self.df)):
+            feature_path =self.df.iloc[idx]['feature_path']
             with open(feature_path, 'rb') as f:
                 feature_data = pickle.load(f)
                 features.append(feature_data['features'].squeeze(0))
@@ -117,13 +117,13 @@ class PaHaWTsDataset(Dataset):
     def __getitem__(self, idx):
         feature_data = self.features[idx]
         features_tensor = torch.tensor(feature_data['features'], dtype=torch.float32)
-        
+        data_path = self.df.iloc[idx]['feature_path']
         # Return different items depending on whether we have labels
         if self.has_labels:
             label = self.df.iloc[idx]['label']
-            return features_tensor, label  # Return image, label, and path
+            return features_tensor, label,data_path  # Return image, label, and path
         else:
-            return features_tensor  # Return image and path for inference
+            return features_tensor,data_path  # Return image and path for inference
 
     def get_labels(self):
         """Return all labels if available, otherwise None"""
