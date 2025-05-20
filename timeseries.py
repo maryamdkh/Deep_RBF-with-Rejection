@@ -17,6 +17,8 @@ from loss.SoftMLLoss import SoftMLLoss
 from trainer.Trainer import Trainer
 from model.Model import DeepRBFNetwork
 from trainer.utils import plot_confusion_matrix
+from sklearn.preprocessing import StandardScaler
+
 
 
 def validate_fold(fold_id, df, args, device):
@@ -34,17 +36,21 @@ def validate_fold(fold_id, df, args, device):
     # Initialize feature processor
     processor = TimeSeriesFeatureProcessor(
         method=args.method,
-        output_dir=args.output_dir,
+        output_dir=args.features_dir,
         rocket_n_kernels=args.rocket_kernels,
         n_jobs=args.n_jobs
     )
 
+    with open(os.path.join(f"{args.modeling_results_dir}/scalers/",f'scaler_{fold_id+1}.pkl'), 'rb') as f:
+        scaler = pickle.load(f)
+
+
     # Process DataFrame
     print(f"Processing {len(df)} samples with {args.method} method...")
     features, df_with_paths = processor.process_dataframe(df)
-    df_with_paths.to_csv(os.path.join(args.output_df_dir,f'val_df_fold_{fold_id + 1}.csv'))
+    df_with_paths.to_csv(os.path.join(args.dfs_dir,f'val_df_fold_{fold_id + 1}.csv'))
     # Load training dataset
-    val_dataset = ParkinsonTSDataset(dataframe=df_with_paths,is_train=False)
+    val_dataset = ParkinsonTSDataset(dataframe=df_with_paths,scaler=scaler,is_train=False)
     plot_group_distribution(val_dataset,
                             file_path = f"{args.modeling_results_dir}/distributions/valid_{fold_id+1}.png", 
                             title=f"Group Distribution Validation Fold {fold_id+1}")
@@ -86,17 +92,20 @@ def train_fold(fold_id, train_df, val_df, args, device):
     # Initialize feature processor
     processor = TimeSeriesFeatureProcessor(
         method=args.method,
-        output_dir=args.output_dir,
+        output_dir=args.features_dir,
         rocket_n_kernels=args.rocket_kernels,
         n_jobs=args.n_jobs
     )
+    scaler = StandardScaler()
+    with open(os.path.join(f"{args.modeling_results_dir}/scalers/",f'scaler_{fold_id+1}.pkl'), 'wb') as f:
+        pickle.dump(scaler, f)
     
     # Process DataFrame
     print(f"Processing {len(train_df)} samples with {args.method} method...")
     features, df_with_paths = processor.process_dataframe(train_df)
-    df_with_paths.to_csv(os.path.join(args.output_df_dir,f'train_df_fold_{fold_id + 1}.csv'))
+    df_with_paths.to_csv(os.path.join(args.dfs_dir,f'train_df_fold_{fold_id + 1}.csv'))
     # Load training dataset
-    train_dataset = ParkinsonTSDataset(dataframe=df_with_paths,is_train=True)
+    train_dataset = ParkinsonTSDataset(dataframe=df_with_paths,scaler=scaler,is_train=True)
     plot_group_distribution(train_dataset,
                             file_path = f"{args.modeling_results_dir}/distributions/train_{fold_id+1}.png", 
                             title=f"Group Distribution Train Fold {fold_id+1}")
@@ -115,7 +124,11 @@ def train_fold(fold_id, train_df, val_df, args, device):
     # Initialize validation dataset and DataLoader only if val_df is not empty
     val_loader = None
     if not val_df.empty:
-        val_dataset = ParkinsonTSDataset(dataframe=val_df, is_train=False)
+        # Process DataFrame
+        print(f"Processing {len(val_df)} samples with {args.method} method...")
+        features, df_with_paths = processor.process_dataframe(val_df)
+        df_with_paths.to_csv(os.path.join(args.dfs_dir,f'valid_df_fold_{fold_id + 1}.csv'))
+        val_dataset = ParkinsonTSDataset(dataframe=df_with_paths,scaler=scaler, is_train=False)
         plot_group_distribution(val_dataset,
                             file_path = f"{args.modeling_results_dir}/distributions/valid_{fold_id+1}.png", 
                             title=f"Group Distribution Validation Fold {fold_id+1}")
@@ -168,14 +181,13 @@ def init_config(args):
     os.makedirs(args.modeling_results_dir, exist_ok=True)
     os.makedirs(os.path.join(args.modeling_results_dir,"distributions"), exist_ok=True)
     os.makedirs(os.path.join(args.modeling_results_dir,"loss"), exist_ok=True)
+    os.makedirs(os.path.join(args.modeling_results_dir,"scalers"), exist_ok=True)
     
     set_seed(args.random_state)
 
 def init_parser():
         # Set up argument parser
     parser = argparse.ArgumentParser(description='Process time series features from a DataFrame')
-    parser.add_argument('--input', type=str, required=True, 
-                       help='Path to input DataFrame pickle file')
     parser.add_argument('--dfs_dir', type=str, required=True,
                        help='Directory to save processed DataFrame with feature paths')
     parser.add_argument('--features_dir', type=str, required=True,
@@ -201,8 +213,8 @@ def init_parser():
                         help="Number of classes in the dataset")
     parser.add_argument("--feature_dim", type=int, required=True,
                         help="Dimension of the feature vector used to calculate the distance.")
-    parser.add_argument("--input_dim", type=int, required=True,
-                        help="Dimension of the feature vector input to the DeepRBF network")
+    # parser.add_argument("--input_dim", type=int, required=True,
+    #                     help="Dimension of the feature vector input to the DeepRBF network")
     parser.add_argument("--lambda_margin", type=float, default=1.0,
                         help="Margin for the hinge loss (default: 1.0)")
     parser.add_argument("--lambda_min", type=float, default=100,
@@ -250,43 +262,43 @@ def main():
     print("Training completed for all folds.")
 
     #Initialize lists to collect all predicted and true labels across all folds
-    all_folds_predicted_labels = []
-    all_folds_doctor_labels = []    
-    all_folds_real_labels = []    
-    all_folds_subject_ids = []    
-    all_folds_distances = []
+    # all_folds_predicted_labels = []
+    # all_folds_doctor_labels = []    
+    # all_folds_real_labels = []    
+    # all_folds_subject_ids = []    
+    # all_folds_distances = []
 
-    # Validate a model for each fold
-    for fold_id in range(args.num_folds):
-        # Load validation CSV file for the current fold
-        val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
-        val_df = read_csv_safe(val_csv_path)
-        if not len(val_df):
-          continue
+    # # Validate a model for each fold
+    # for fold_id in range(args.num_folds):
+    #     # Load validation CSV file for the current fold
+    #     val_csv_path = os.path.join(args.folds_root_dir_val, f"val_df_fold_{fold_id + 1}.csv")
+    #     val_df = read_csv_safe(val_csv_path)
+    #     if not len(val_df):
+    #       continue
         
-        # Validate the model for the current fold
-        all_distances,all_predicted_labels, all_doctor_labels = validate_fold(fold_id, val_df, args, device)
+    #     # Validate the model for the current fold
+    #     all_distances,all_predicted_labels, all_doctor_labels = validate_fold(fold_id, val_df, args, device)
         
-        # Collect the predicted and true labels for this fold
-        all_folds_predicted_labels.extend(all_predicted_labels)
-        all_folds_doctor_labels.extend(all_doctor_labels)
-        all_folds_real_labels.extend(val_df.loc[:,"real_labels"].to_list() )
-        all_folds_subject_ids.extend([item.split("/")[-1].split(".")[0] for item in val_df.loc[:,"path"].to_list()])
-        all_folds_distances.extend(all_distances)
+    #     # Collect the predicted and true labels for this fold
+    #     all_folds_predicted_labels.extend(all_predicted_labels)
+    #     all_folds_doctor_labels.extend(all_doctor_labels)
+    #     all_folds_real_labels.extend(val_df.loc[:,"real_labels"].to_list() )
+    #     all_folds_subject_ids.extend([item.split("/")[-1].split(".")[0] for item in val_df.loc[:,"path"].to_list()])
+    #     all_folds_distances.extend(all_distances)
 
 
-    print("Validating completed for all folds.")
+    # print("Validating completed for all folds.")
 
-    val_df_data = {"id":all_folds_subject_ids, "doctor_label":all_folds_doctor_labels,"real_label":all_folds_real_labels,
-                  "predicted_label":all_folds_predicted_labels,"distance":all_folds_distances}
-    pd.DataFrame(data =val_df_data).to_csv("valiadtion_results.csv")
+    # val_df_data = {"id":all_folds_subject_ids, "doctor_label":all_folds_doctor_labels,"real_label":all_folds_real_labels,
+    #               "predicted_label":all_folds_predicted_labels,"distance":all_folds_distances}
+    # pd.DataFrame(data =val_df_data).to_csv("valiadtion_results.csv")
 
-    # Plot a confusion matrix for all folds combined
-    target_names = ["control", "parkinson", "rejected"]  # Adjust based on your labels
-    plot_confusion_matrix(all_folds_doctor_labels, all_folds_predicted_labels, target_names,args.save_results)
-    args_dict = vars(args)
-    args_df = pd.DataFrame.from_dict(args_dict, orient='index', columns=['Value'])
-    args_df.to_csv(os.path.join(args.save_results, "config_arguments.csv"))
+    # # Plot a confusion matrix for all folds combined
+    # target_names = ["control", "parkinson", "rejected"]  # Adjust based on your labels
+    # plot_confusion_matrix(all_folds_doctor_labels, all_folds_predicted_labels, target_names,args.save_results)
+    # args_dict = vars(args)
+    # args_df = pd.DataFrame.from_dict(args_dict, orient='index', columns=['Value'])
+    # args_df.to_csv(os.path.join(args.save_results, "config_arguments.csv"))
 
 
 

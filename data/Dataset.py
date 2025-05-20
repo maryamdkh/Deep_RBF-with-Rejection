@@ -8,7 +8,6 @@ import random
 import json
 import torch
 import pickle
-from sklearn.preprocessing import StandardScaler
 
 class PaHaWDataset(Dataset):
     def __init__(self, df, image_root_dir=None, transform=None, has_labels=True):
@@ -68,7 +67,7 @@ class PaHaWDataset(Dataset):
     
 
 class ParkinsonTSDataset(Dataset):
-    def __init__(self, dataframe, transform=None, is_train=True, oversample_option=1, k=None, class_weights=None):
+    def __init__(self, dataframe, scaler, transform=None, is_train=True, oversample_option=1, k=None, class_weights=None):
         """
         Args:
             dataframe (pd.DataFrame): DataFrame containing json file paths, doctor_label, and real_label.
@@ -83,7 +82,7 @@ class ParkinsonTSDataset(Dataset):
         self.oversample_option = oversample_option
         self.k = k
         self.class_weights = class_weights if class_weights is not None else {"control": 0.5, "parkinson": 0.5}  # Default weights
-        self.scaler = StandardScaler()
+        self.scaler =scaler
 
         # Define label mappings
         self.label_mapping = {"control": 0, "parkinson": 1, "unknown": 2}
