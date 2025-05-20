@@ -9,7 +9,7 @@ class DeepRBFNetwork(nn.Module):
             args: Arguments containing num_classes, feature_dim, lambda_margin, distance_metric.
         """
         super(DeepRBFNetwork, self).__init__()
-
+        self.feature_extractor = None
         if feature_extractor:
             # Freeze feature extractor
             for param in feature_extractor.parameters():
