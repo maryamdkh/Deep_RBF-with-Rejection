@@ -71,7 +71,6 @@ class DeepRBFNetwork(nn.Module):
             features = self.post_extractor(x)  # Shape: [batch_size, feature_dim]
         else:
             features = self.post_extractor_ts(x)
-            features = x
 
         # Ensure the batch dimension is preserved
         if features.dim() == 1:
