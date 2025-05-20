@@ -51,18 +51,18 @@ class Trainer:
 
         # Use tqdm for progress bar
         pbar = tqdm(self.train_loader, desc="Training", leave=False)
-        for images, doctor_labels, real_labels, _ in pbar:
+        for inputs, doctor_labels, real_labels, _ in pbar:
             # Skip empty batches
-            if len(images) == 0:
+            if len(inputs) == 0:
                 continue
 
             # Move data to the correct device
-            images = images.to(self.device)
+            inputs = inputs.to(self.device)
             doctor_labels = doctor_labels.to(self.device)
             real_labels = real_labels.to(self.device)
 
             # Forward pass
-            distances = self.model(images)
+            distances = self.model(inputs)
             loss = self.criterion(distances, doctor_labels, real_labels)
             # print(loss)
 
@@ -101,21 +101,21 @@ class Trainer:
             # Use tqdm for progress bar
             pbar = tqdm(self.val_loader, desc="Validation", leave=False)
             for batch in pbar:
-                # Unpack the batch (assuming batch is a tuple of (images, doctor_labels, real_labels, _))
-                images, doctor_labels, real_labels, _ = batch
-                # print(images.shape)
+                # Unpack the batch (assuming batch is a tuple of (inputs, doctor_labels, real_labels, _))
+                inputs, doctor_labels, real_labels, _ = batch
+                # print(inputs.shape)
 
                 # Skip empty batches
-                if len(images) == 0:
+                if len(inputs) == 0:
                     continue
 
                 # Move data to the correct device
-                images = images.to(self.device)
+                inputs = inputs.to(self.device)
                 doctor_labels = doctor_labels.to(self.device)
                 real_labels = real_labels.to(self.device)
 
                 # Forward pass
-                distances = self.model(images)
+                distances = self.model(inputs)
                 loss = self.criterion(distances, doctor_labels, real_labels)
 
                 # Accumulate loss
@@ -219,24 +219,24 @@ class Trainer:
         all_doctor_labels = []
 
         with torch.no_grad():
-            for images, doctor_labels, _, _ in dataloader:
+            for inputs, doctor_labels, _, _ in dataloader:
                 # Skip empty batches
-                if len(images) == 0:
+                if len(inputs) == 0:
                     continue
 
                 # Move data to the correct device
-                images = images.to(self.device)
+                inputs = inputs.to(self.device)
                 doctor_labels = doctor_labels.to(self.device)
 
                 # Predict labels based on the selected inference method
                 if inference_method == "min_distance":
-                    distances,predicted_labels, is_rejected = self.model.inference(images, rejection_threshold=threshold,confidence_threshold=confidence_threshold)
+                    distances,predicted_labels, is_rejected = self.model.inference(inputs, rejection_threshold=threshold,confidence_threshold=confidence_threshold)
                     # Handle rejected samples (assign label 2)
                     predicted_labels[is_rejected] = 2
                     all_distances.append(distances.cpu().numpy())
 
                 elif inference_method == "softml":
-                    predicted_labels, is_rejected = self.model.inference_softml(images, lambda_eval=lambda_eval)
+                    predicted_labels, is_rejected = self.model.inference_softml(inputs, lambda_eval=lambda_eval)
                     # Handle rejected samples (assign label 2)
                     predicted_labels[is_rejected] = 2
                 else:

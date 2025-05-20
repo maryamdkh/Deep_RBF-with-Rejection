@@ -57,19 +57,22 @@ class TimeSeriesFeatureProcessor:
         """Extract features for a single sample with time component"""
         if sample_data is None:
             return None
+        if sample_data.ndim == 3:
+            # collapse on lines dimension
+            sample_data = sample_data.reshape(-1, *sample_data.shape[2:])
+
             
         if self.method == 'raw':
             return sample_data  # Return raw time series with time component
             
         elif self.method == 'rocket':
-            # Reshape for ROCKET: [1, n_lines*3, n_timesteps] (time, x, y for each line)
+            # Reshape for ROCKET: [1, 3, n_timesteps] (time, x, y)
             n_lines = sample_data.shape[0]
-            rocket_sample = np.zeros((1, n_lines*3, sample_data.shape[1]))
-            
-            for i in range(n_lines):
-                rocket_sample[0, 3*i] = sample_data[i, :, 0]  # time
-                rocket_sample[0, 3*i+1] = sample_data[i, :, 1]  # x coordinates
-                rocket_sample[0, 3*i+2] = sample_data[i, :, 2]  # y coordinates
+            rocket_sample = np.zeros((1, 3, sample_data.shape[0]))
+
+            rocket_sample[0, 0,:] = sample_data[:, 0]  # time
+            rocket_sample[0, 1,:] = sample_data[:, 1]  # x coordinates
+            rocket_sample[0, 2,:] = sample_data[:, 2]  # y coordinates
             
             if self.rocket is None:
                 self.rocket = Rocket(num_kernels=self.rocket_n_kernels)
@@ -78,7 +81,7 @@ class TimeSeriesFeatureProcessor:
                 self.rocket.fit(dummy_data)
             
             features = self.rocket.transform(rocket_sample)
-            return features[0]  # Return first (and only) sample
+            return features  # Return first (and only) sample
             
         elif self.method == 'handcrafted':
             features = {}
@@ -209,11 +212,11 @@ class TimeSeriesFeatureProcessor:
             
             # Save to disk
             if save_to_disk:
-                output_path = os.path.join(self.output_dir, f'{sample_id}.pkl')
+                output_path = os.path.join(self.output_dir, str(sample_id)+".pkl")
                 with open(output_path, 'wb') as f:
                     pickle.dump({
                         'sample_id': sample_id,
-                        'features': features,
+                        'features': np.array(features),
                         'method': self.method,
                         'original_shape': sample_data.shape
                     }, f)
@@ -230,7 +233,7 @@ class TimeSeriesFeatureProcessor:
         # First pass to fit any necessary transformers
         if self.method == 'rocket':
             print("Fitting ROCKET transformer...")
-            dummy_sample = np.zeros((1, 2, 100))  # Assumes minimum 100 timesteps
+            dummy_sample = np.zeros((1, 3, 100))  # Assumes minimum 100 timesteps
             self.rocket = Rocket(num_kernels=self.rocket_n_kernels)
             self.rocket.fit(dummy_sample)
         

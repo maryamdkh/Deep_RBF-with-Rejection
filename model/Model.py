@@ -25,6 +25,13 @@ class DeepRBFNetwork(nn.Module):
             nn.Linear(1024, args.feature_dim),  # Final feature_dim (e.g., 512)
         )
 
+        self.post_extractor_ts = nn.Sequential(
+            nn.Linear(args.input_dim, args.input_dim//2),
+            nn.ReLU(inplace=True),
+            nn.Linear(args.input_dim//2, args.feature_dim),  # Final feature_dim (e.g., 512)
+        )
+
+
         # Initialize the new layers with a fixed seed
         self._initialize_weights(seed=42)
 
@@ -63,6 +70,7 @@ class DeepRBFNetwork(nn.Module):
             # Process features to desired dimension
             features = self.post_extractor(x)  # Shape: [batch_size, feature_dim]
         else:
+            features = self.post_extractor_ts(x)
             features = x
 
         # Ensure the batch dimension is preserved

@@ -68,11 +68,10 @@ class PaHaWDataset(Dataset):
     
 
 class ParkinsonTSDataset(Dataset):
-    def __init__(self, dataframe, data_dir, transform=None, is_train=True, oversample_option=1, k=None, class_weights=None,line_threshold=10):
+    def __init__(self, dataframe, transform=None, is_train=True, oversample_option=1, k=None, class_weights=None):
         """
         Args:
             dataframe (pd.DataFrame): DataFrame containing json file paths, doctor_label, and real_label.
-            data_dir (str): Root directory where images are stored.
             is_train (bool): Whether the dataset is for training (default: True).
             oversample_option (int): 1 for equal and balanced sampling, 2 for weighted sampling.
             k (int, optional): Constant number to oversample to. If None, oversample to the max length within each pair.
@@ -80,12 +79,10 @@ class ParkinsonTSDataset(Dataset):
                                            Example: {"control": 0.3, "parkinson": 0.7}.
         """
         self.dataframe = dataframe
-        self.data_dir = data_dir
         self.is_train = is_train
         self.oversample_option = oversample_option
         self.k = k
         self.class_weights = class_weights if class_weights is not None else {"control": 0.5, "parkinson": 0.5}  # Default weights
-        self.line_threshold = line_threshold
         self.scaler = StandardScaler()
 
         # Define label mappings
@@ -114,10 +111,10 @@ class ParkinsonTSDataset(Dataset):
         
         # First pass: Load all features and collect shapes
         for idx in range(len(self.dataframe)):
-            feature_path = os.path.join(self.data_dir, self.dataframe.iloc[idx]['extracted_feature'])
+            feature_path =self.dataframe.iloc[idx]['feature_path']
             with open(feature_path, 'rb') as f:
                 feature_data = pickle.load(f)
-                features.append(feature_data['features'])
+                features.append(feature_data['features'].squeeze(0))
                 feature_shapes.append(feature_data['original_shape'])
 
         # Convert features to numpy array for scaling
