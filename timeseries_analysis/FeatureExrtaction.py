@@ -194,39 +194,70 @@ class TimeSeriesFeatureProcessor:
         else:
             raise ValueError(f"Unknown method: {self.method}")
             
+    def _validate_cached_features(self, cached_data):
+        """Validate cached feature format and version"""
+        required_keys = {'sample_id', 'features', 'method', 'original_shape'}
+        if not all(key in cached_data for key in required_keys):
+            return False
+        if cached_data.get('method') != self.method:
+            return False
+        if not isinstance(cached_data['features'], np.ndarray):
+            return False
+        return True
+    
+    def _save_features(self, features, sample_id, original_shape, path):
+        """Safely save features to disk"""
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        temp_path = path + '.tmp'
+        try:
+            with open(temp_path, 'wb') as f:
+                pickle.dump({
+                    'sample_id': sample_id,
+                    'features': np.array(features),
+                    'method': self.method,
+                    'original_shape': original_shape,
+                }, f, protocol=pickle.HIGHEST_PROTOCOL)
+            os.replace(temp_path, path)  # Atomic write
+        except Exception as e:
+            if os.path.exists(temp_path):
+                os.remo
     
     def process_sample(self, row, save_to_disk=True):
         """Process a single sample from the DataFrame"""
-        sample_id = row['path'].split("/")[-1].split(".")[0]  # Assuming index is sample ID
-        file_path = row['path']  # Assuming column is named 'path'
-        feature_path = None  # Initialize feature path
+        sample_id = row['path'].split("/")[-1].split(".")[0]
+        file_path = row['path']
+        feature_path = os.path.join(self.output_dir, f"{sample_id}.pkl")
         
+        # Check if cached features exist
+        if os.path.exists(feature_path):
+            try:
+                with open(feature_path, 'rb') as f:
+                    cached_data = pickle.load(f)
+                    # Validate cached features
+                    if self._validate_cached_features(cached_data):
+                        return cached_data['features'], feature_path
+                    print(f"Invalid cache for {sample_id}, reprocessing...")
+            except (pickle.PickleError, EOFError) as e:
+                print(f"Cache loading failed for {sample_id}: {str(e)}")
+
+        # Process sample if no valid cache exists
         try:
-            # Load and preprocess sample
             sample_data = self._load_sample(file_path)
             if sample_data is None:
                 return None, None
             
-            # Extract features
             features = self._extract_features_single(sample_data)
             
-            # Save to disk
             if save_to_disk:
-                output_path = os.path.join(self.output_dir, str(sample_id)+".pkl")
-                with open(output_path, 'wb') as f:
-                    pickle.dump({
-                        'sample_id': sample_id,
-                        'features': np.array(features),
-                        'method': self.method,
-                        'original_shape': sample_data.shape
-                    }, f)
-                feature_path = output_path  # Store the path where features were saved
+                self._save_features(features, sample_id, sample_data.shape, feature_path)
             
             return features, feature_path
         
         except Exception as e:
             print(f"Error processing sample {sample_id}: {str(e)}")
             return None, None
+        
+    
 
     def process_dataframe(self, df):
         """Process all samples in the DataFrame"""
