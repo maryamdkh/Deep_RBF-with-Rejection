@@ -44,7 +44,7 @@ def load_feature_extractor(device, data_path=None):
 
     return model
 
-def load_all_models(model_paths, args_template, device):
+def load_all_models(model_paths, args_template, device,feature_extractor=True):
     """
     Load all trained models from disk.
     
@@ -59,7 +59,7 @@ def load_all_models(model_paths, args_template, device):
     models = []
     for path in model_paths:
         # Initialize feature extractor (replace with your actual feature extractor)
-        feature_extractor  = load_feature_extractor(device=device)
+        feature_extractor = load_feature_extractor(device=device) if feature_extractor else None
         model = DeepRBFNetwork(feature_extractor=feature_extractor, args=args_template)
         model.load_state_dict(torch.load(path, map_location=device)["model_state_dict"])
         model.to(device)

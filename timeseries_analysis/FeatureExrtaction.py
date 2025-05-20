@@ -10,9 +10,33 @@ from multiprocessing import Pool
 from functools import partial
 import json
 
+def svc_to_np(file_path , norm= False ):
+
+    try:
+        df = pd.read_csv(file_path, delimiter=' ', header=None,
+                        names=['y', 'x' , 'time_stamp'], skiprows=1)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"File {file_path} does not exist.")
+
+    min_TS = df['time_stamp'].min()
+
+    df['Y'] = df.apply(lambda row: [row['x'], row['y'], row['time_stamp'] - min_TS], axis=1)
+
+ 
+    df.drop(columns=['y', 'x' , 'time_stamp'], inplace=True)
+
+    Y = np.asanyarray(df['Y'].to_list())
+
+    if(norm):
+        Y[: , 1] = Y[: , 1]- np.mean( Y[: , 1] ) # y-coordinate will be subtracted by its mean
+        Y[: , 0] = Y[: , 0]- min( Y[: , 0] ) # x-coordinate will be normalized to 0
+
+
+    return Y
+
 class TimeSeriesFeatureProcessor:
     def __init__(self, method='rocket', output_dir='./features', 
-                 rocket_n_kernels=10_000, n_jobs=-1):
+                 rocket_n_kernels=10_000, n_jobs=-1, dataset_name = None):
         """
         Args:
             method: Feature extraction method ('rocket', 'handcrafted', 'tsfresh', 'catch22', or 'raw')
@@ -25,32 +49,34 @@ class TimeSeriesFeatureProcessor:
         self.rocket_n_kernels = rocket_n_kernels
         self.n_jobs = n_jobs
         self.rocket = None
+        self.dataset_name = dataset_name
         
         os.makedirs(output_dir, exist_ok=True)
 
     def _load_sample(self, file_path):
         """Load and preprocess a single sample with time component"""
-        with open(file_path, 'r') as f:
-            data = json.load(f)
+        if not self.dataset_name:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            # Filter lines based on length threshold
+            valid_lines = [line for line in data['lines'] if len(line['points']) >= 10]
+            sample_data = []
+            for line in valid_lines[::-1]:
+                for idi , point in enumerate(line['points']):
+                    x = float(point['x'])
+                    y = float(point['y'])
+                    sample_data.append([line['times'][idi],x,y])
+            sample_data = np.asanyarray(sample_data)[1:-1:]
+        elif self.dataset_name == 'pahaw':
+            sample_data = svc_to_np(file_path)
+           
         
-        # Filter lines based on length threshold
-        valid_lines = [line for line in data['lines'] if len(line['points']) >= 10]
-        
-        sample_data = []
-        for line in valid_lines[::-1]:
-            for idi , point in enumerate(line['points']):
-                x = float(point['x'])
-                y = float(point['y'])
-                sample_data.append([line['times'][idi],x,y])
-
-        sample_data = np.asanyarray(sample_data)
         if sample_data.size == 0 or sample_data is None:
             print("invalid sample_data")
             print(file_path)
             return
         
-        filtered_data = sample_data[1:-1:]
-        return np.asanyarray(filtered_data)
+        return sample_data
 
     
     def _extract_features_single(self, sample_data):

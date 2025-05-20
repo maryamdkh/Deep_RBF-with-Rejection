@@ -19,7 +19,7 @@ from model.Model import DeepRBFNetwork
 from trainer.utils import plot_confusion_matrix
 from sklearn.preprocessing import StandardScaler
 
-
+import numpy as np
 
 def validate_fold(fold_id, df,train_df, args, device):
     """
@@ -281,7 +281,6 @@ def main():
         train_df = read_csv_safe(train_csv_path)
         # Validate the model for the current fold
         all_distances,all_predicted_labels, all_doctor_labels = validate_fold(fold_id,train_df=train_df, df=val_df, args=args, device=device)
-        
         # Collect the predicted and true labels for this fold
         all_folds_predicted_labels.extend(all_predicted_labels)
         all_folds_doctor_labels.extend(all_doctor_labels)
@@ -292,16 +291,23 @@ def main():
 
     print("Validating completed for all folds.")
 
+    # print("all_folds_predicted_labels:",np.array(all_folds_predicted_labels).shape)
+    # print("all_folds_doctor_labels:",np.array(all_folds_doctor_labels).shape)
+    # print("all_folds_real_labels:",np.array(all_folds_real_labels).shape)
+    # print("all_folds_subject_ids:",np.array(all_folds_subject_ids).shape)
+    # print("all_folds_distances:",len(all_folds_distances))
+
     val_df_data = {"id":all_folds_subject_ids, "doctor_label":all_folds_doctor_labels,"real_label":all_folds_real_labels,
                   "predicted_label":all_folds_predicted_labels,"distance":all_folds_distances}
+
     pd.DataFrame(data =val_df_data).to_csv("valiadtion_results.csv")
 
     # Plot a confusion matrix for all folds combined
     target_names = ["control", "parkinson", "rejected"]  # Adjust based on your labels
-    plot_confusion_matrix(all_folds_doctor_labels, all_folds_predicted_labels, target_names,args.save_results)
+    plot_confusion_matrix(all_folds_doctor_labels, all_folds_predicted_labels, target_names,args.modeling_results_dir)
     args_dict = vars(args)
     args_df = pd.DataFrame.from_dict(args_dict, orient='index', columns=['Value'])
-    args_df.to_csv(os.path.join(args.save_results, "config_arguments.csv"))
+    args_df.to_csv(os.path.join(args.modeling_results_dir, "config_arguments.csv"))
 
 
 

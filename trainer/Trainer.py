@@ -233,7 +233,7 @@ class Trainer:
                     distances,predicted_labels, is_rejected = self.model.inference(inputs, rejection_threshold=threshold,confidence_threshold=confidence_threshold)
                     # Handle rejected samples (assign label 2)
                     predicted_labels[is_rejected] = 2
-                    all_distances.append(distances.cpu().numpy())
+                    all_distances.extend(distances.cpu().numpy())
 
                 elif inference_method == "softml":
                     predicted_labels, is_rejected = self.model.inference_softml(inputs, lambda_eval=lambda_eval)

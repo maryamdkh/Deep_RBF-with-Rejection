@@ -65,6 +65,72 @@ class PaHaWDataset(Dataset):
             return self.df['label'].values
         return None
     
+class PaHaWTsDataset(Dataset):
+    def __init__(self, df,scaler, has_labels=True):
+        """
+        Args:
+            df (pd.DataFrame): DataFrame containing at least:
+                - 'data_path': relative or absolute paths to images
+                - (optional) 'label': corresponding labels if has_labels=True
+            has_labels (bool): Whether the dataset contains labels (for training/validation)
+                               or not (for inference).
+        """
+        self.df = df.copy()
+        self.has_labels = has_labels
+        
+        self.scaler =scaler               
+        self.features = self._load_and_scale_features()
+
+    def __len__(self):
+        return len(self.df)
+
+    def _load_and_scale_features(self):
+        """Load all features from .pkl files and fit scaler if training"""
+        features = []
+        feature_shapes = []
+        
+        # First pass: Load all features and collect shapes
+        for idx in range(len(self.dataframe)):
+            feature_path =self.dataframe.iloc[idx]['feature_path']
+            with open(feature_path, 'rb') as f:
+                feature_data = pickle.load(f)
+                features.append(feature_data['features'].squeeze(0))
+                feature_shapes.append(feature_data['original_shape'])
+
+        feature_array = np.array(features)
+       
+        # Fit scaler on training data only
+        self.scaler.fit(feature_array)
+        # Scale features
+        scaled_features = self.scaler.transform(feature_array)
+
+        processed_features = []
+        for i in range(len(scaled_features)):
+            processed_features.append({
+                    'features': scaled_features[i],
+                    'original_shape': feature_shapes[i]
+                })
+
+
+        return processed_features
+
+    def __getitem__(self, idx):
+        feature_data = self.features[idx]
+        features_tensor = torch.tensor(feature_data['features'], dtype=torch.float32)
+        
+        # Return different items depending on whether we have labels
+        if self.has_labels:
+            label = self.df.iloc[idx]['label']
+            return features_tensor, label  # Return image, label, and path
+        else:
+            return features_tensor  # Return image and path for inference
+
+    def get_labels(self):
+        """Return all labels if available, otherwise None"""
+        if self.has_labels:
+            return self.df['label'].values
+        return None
+    
 
 class ParkinsonTSDataset(Dataset):
     def __init__(self, dataframe, scaler, transform=None, is_train=True, oversample_option=1, k=None, class_weights=None):
