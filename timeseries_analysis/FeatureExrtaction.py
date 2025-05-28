@@ -109,17 +109,17 @@ class TimeSeriesFeatureProcessor:
             rocket_sample[0, 4, :] = y_deriv  # y derivative
 
             # Calculate FFT magnitudes (real part)
-            x_fft = np.abs(np.fft.rfft(sample_data[:, 1], n=n_timesteps))
-            y_fft = np.abs(np.fft.rfft(sample_data[:, 2], n=n_timesteps))
+            # x_fft = np.abs(np.fft.rfft(sample_data[:, 1], n=n_timesteps))
+            # y_fft = np.abs(np.fft.rfft(sample_data[:, 2], n=n_timesteps))
             
-            # Pad FFT results to match original length
-            x_fft_padded = np.zeros(n_timesteps)
-            y_fft_padded = np.zeros(n_timesteps)
-            x_fft_padded[:len(x_fft)] = x_fft
-            y_fft_padded[:len(y_fft)] = y_fft
+            # # Pad FFT results to match original length
+            # x_fft_padded = np.zeros(n_timesteps)
+            # y_fft_padded = np.zeros(n_timesteps)
+            # x_fft_padded[:len(x_fft)] = x_fft
+            # y_fft_padded[:len(y_fft)] = y_fft
             
-            rocket_sample[0, 5, :] = x_fft_padded  # x FFT magnitude
-            rocket_sample[0, 6, :] = y_fft_padded  # y FFT magnitude
+            # rocket_sample[0, 5, :] = x_fft_padded  # x FFT magnitude
+            # rocket_sample[0, 6, :] = y_fft_padded  # y FFT magnitude
 
             if self.rocket is None:
                 self.rocket = Rocket(num_kernels=self.rocket_n_kernels)
