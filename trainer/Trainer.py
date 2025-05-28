@@ -31,6 +31,7 @@ class Trainer:
         self.save_dir = save_dir
         self.save_results = save_results
         self.best_val_loss = float('inf')
+        self.saved_model = False
         self.best_model_weights = None  # Store the best model weights
 
         # Create save directory if it doesn't exist
@@ -136,12 +137,15 @@ class Trainer:
         """
         Save the model checkpoint if the loss improves.
         """
+        if loss == 0:
+            return
         if loss < self.best_val_loss:
             self.best_val_loss = loss
             checkpoint_path = os.path.join(self.save_dir, f"best_model_{self.fold}.pt")
             torch.save({
                 'model_state_dict': self.model.state_dict(),
             }, checkpoint_path)
+            self.saved_model = True
             print(f"Saved best model checkpoint for fold {self.fold} with loss {loss:.4f}")
 
     def plot_losses(self):
@@ -195,6 +199,14 @@ class Trainer:
 
             # Print epoch results
             print(f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
+
+        if not self.saved_model:
+            checkpoint_path = os.path.join(self.save_dir, f"best_model_{self.fold}.pt")
+            torch.save({
+                'model_state_dict': self.model.state_dict(),
+            }, checkpoint_path)
+            print(f"Saved best model checkpoint for fold {self.fold}")
+
 
         # Plot losses after training
         self.plot_losses()
