@@ -103,10 +103,10 @@ class TimeSeriesFeatureProcessor:
             rocket_sample[0, 2, :] = sample_data[:, 2]  # y coordinates
 
             # Calculate derivatives (using central difference)
-            x_deriv = np.gradient(sample_data[:, 1], sample_data[:, 0])
-            y_deriv = np.gradient(sample_data[:, 2], sample_data[:, 0])
-            rocket_sample[0, 3, :] = x_deriv  # x derivative
-            rocket_sample[0, 4, :] = y_deriv  # y derivative
+            # x_deriv = np.gradient(sample_data[:, 1], sample_data[:, 0])
+            # y_deriv = np.gradient(sample_data[:, 2], sample_data[:, 0])
+            # rocket_sample[0, 3, :] = x_deriv  # x derivative
+            # rocket_sample[0, 4, :] = y_deriv  # y derivative
 
             # Calculate FFT magnitudes (real part)
             # x_fft = np.abs(np.fft.rfft(sample_data[:, 1], n=n_timesteps))
