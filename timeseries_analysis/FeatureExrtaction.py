@@ -92,18 +92,39 @@ class TimeSeriesFeatureProcessor:
             return sample_data  # Return raw time series with time component
             
         elif self.method == 'rocket':
-            # Reshape for ROCKET: [1, 3, n_timesteps] (time, x, y)
-            n_lines = sample_data.shape[0]
-            rocket_sample = np.zeros((1, 3, sample_data.shape[0]))
+            # Reshape for ROCKET with additional channels: [1, 7, n_timesteps]
+            # Channels: [time, x, y, x_deriv, y_deriv, x_fft, y_fft]
+            n_timesteps = sample_data.shape[0]
+            rocket_sample = np.zeros((1, 7, n_timesteps))
 
-            rocket_sample[0, 0,:] = sample_data[:, 0]  # time
-            rocket_sample[0, 1,:] = sample_data[:, 1]  # x coordinates
-            rocket_sample[0, 2,:] = sample_data[:, 2]  # y coordinates
+            # Original channels
+            rocket_sample[0, 0, :] = sample_data[:, 0]  # time
+            rocket_sample[0, 1, :] = sample_data[:, 1]  # x coordinates
+            rocket_sample[0, 2, :] = sample_data[:, 2]  # y coordinates
+
+            # Calculate derivatives (using central difference)
+            x_deriv = np.gradient(sample_data[:, 1], sample_data[:, 0])
+            y_deriv = np.gradient(sample_data[:, 2], sample_data[:, 0])
+            rocket_sample[0, 3, :] = x_deriv  # x derivative
+            rocket_sample[0, 4, :] = y_deriv  # y derivative
+
+            # Calculate FFT magnitudes (real part)
+            x_fft = np.abs(np.fft.rfft(sample_data[:, 1], n=n_timesteps))
+            y_fft = np.abs(np.fft.rfft(sample_data[:, 2], n=n_timesteps))
             
+            # Pad FFT results to match original length
+            x_fft_padded = np.zeros(n_timesteps)
+            y_fft_padded = np.zeros(n_timesteps)
+            x_fft_padded[:len(x_fft)] = x_fft
+            y_fft_padded[:len(y_fft)] = y_fft
+            
+            rocket_sample[0, 5, :] = x_fft_padded  # x FFT magnitude
+            rocket_sample[0, 6, :] = y_fft_padded  # y FFT magnitude
+
             if self.rocket is None:
                 self.rocket = Rocket(num_kernels=self.rocket_n_kernels)
                 # Need dummy data to fit (will be replaced with proper fit later)
-                dummy_data = np.zeros((1, 3, sample_data.shape[1]))  # Now 3 channels
+                dummy_data = np.zeros((1, 7, n_timesteps))  # Now 7 channels
                 self.rocket.fit(dummy_data)
             
             features = self.rocket.transform(rocket_sample)
